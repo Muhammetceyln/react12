@@ -1,0 +1,52 @@
+
+.small-select {
+  font-size: 12px;
+  height: 39px;
+  width: 530px;
+}
+
+
+.fontSizelbl {
+  font-size: 13px;
+}
+
+
+
+
+/* Liste içindeki tüm Typography fontlarını küçült */
+.custom-list .MuiTypography-root {
+  font-size: 12px !important;
+}
+
+/* Caption olanlar daha da küçük olsun */
+.custom-list .MuiTypography-caption {
+  font-size: 10px !important;
+}
+
+
+
+
+/* Butonları küçült */
+.small-btn {
+  min-width: 60px !important;   /* default 64px */
+  padding: 2px 8px !important;  /* iç boşluk */
+  font-size: 12px !important;   /* yazı boyutu */
+  height: 28px !important;      /* yüksekliği kontrol */
+}
+
+
+
+
+/* Tablo başlık ve hücre yazı boyutları */
+.custom-table .MuiTableCell-root {
+  font-size: 11px !important;   /* hücre yazısı küçült */
+  padding: 4px 8px !important;  /* iç boşluk azalt */
+}
+
+/* Başlık hücreleri biraz daha kalın olsun */
+.custom-table .MuiTableCell-head {
+  font-size: 11px !important;
+  font-weight: 600 !important;
+}
+
+
