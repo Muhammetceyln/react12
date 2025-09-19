@@ -40,6 +40,9 @@ const Sources = () => {
     const [sources, setSources] = useState([]);
     const [loading, setLoading] = useState(true);
 
+
+    const [activeFilter, setActiveFilter] = useState('all'); // 'all', 'sap', 'hana', 'mssql'
+    const [filteredSources, setFilteredSources] = useState([]);
     // Popup ile ilgili state'ler
     const [openPopup, setOpenPopup] = useState(false);
     const [popupType, setPopupType] = useState("");
@@ -59,6 +62,15 @@ const Sources = () => {
         return localStorage.getItem('authToken');
     };
 
+    useEffect(() => {
+        if (activeFilter === 'all') {
+            setFilteredSources(sources); // Filtre 'all' ise tüm listeyi göster
+        } else {
+            // Değilse, 'sources' listesini 'type' özelliğine göre filtrele
+            const filtered = sources.filter(source => source.type.toLowerCase() === activeFilter);
+            setFilteredSources(filtered);
+        }
+    }, [sources, activeFilter]); // Bu hook, 'sources' veya 'activeFilter' değiştiğinde çalışır
     // API'den sources listesini getir
     const fetchSources = async () => {
         setLoading(true);
@@ -261,7 +273,7 @@ const Sources = () => {
                     bgcolor: "#f5f7ff",
                     borderRadius: 2,
                     border: "1px solid #d0d7ff",
-                    maxHeight: 400,
+                    maxHeight: 'calc(100vh - 260px)',
                     overflowY: "auto",
                 }}
             >

@@ -8,6 +8,8 @@ import bcryptjs from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
 import process from 'process';
+import cron from 'node-cron';
+
 dotenv.config(); // .env server klasöründe ise bu yeterli
 
 
@@ -24,6 +26,34 @@ dotenv.config({ path: path.join(__dirname, '../.env') });
 
 const app = express();
 const PORT = 3001;
+
+/* const job1 = cron.schedule('10 * * * * *', () => {
+  // Bu fonksiyon her dakika çalışacak
+  const timestamp = new Date().toLocaleString("tr-TR");
+  console.log(`🕒 Zamanlanmış görev çalıştı1: ${timestamp} - Veritabanı kontrol ediliyor...`);
+
+
+});
+
+const job2 = cron.schedule('yıldız slash var5 * * * * *', () => {
+  // Bu fonksiyon her dakika çalışacak
+  const timestamp = new Date().toLocaleString("tr-TR");
+  console.log(`🕒 Zamanlanmış görev çalıştı2: ${timestamp} - Veritabanı kontrol ediliyor...`);
+
+
+});
+
+job2.stop
+
+const job3 = cron.schedule('2 * * * * *', () => {
+  // Bu fonksiyon her dakika çalışacak
+  const timestamp = new Date().toLocaleString("tr-TR");
+  console.log(`🕒 Zamanlanmış görev çalıştı3: ${timestamp} - Veritabanı kontrol ediliyor...`);
+
+
+}); */
+
+
 
 // --- Veritabanı Kurulumu --- MSSQL MAİN DB
 const dbConfig = {
@@ -779,7 +809,7 @@ app.post('/api/sources/preview', requireAuth, async (req, res) => {
       }).connect();
 
       const columnList = columns.join(', ');
-      const query = `SELECT TOP 20 ${columnList} FROM "${schema}"."${table}"`;
+      const query = `SELECT TOP 50 ${columnList} FROM "${schema}"."${table}"`;
       console.log('🔍 HANA Preview query:', query);
 
       const result = await connection.exec(query);
@@ -795,7 +825,7 @@ app.post('/api/sources/preview', requireAuth, async (req, res) => {
       }).connect();
 
       const columnList = columns.join(', ');
-      const query = `SELECT TOP 20 ${columnList} FROM [${schema}].[${table}]`;
+      const query = `SELECT TOP 50 ${columnList} FROM [${schema}].[${table}]`;
       console.log('🔍 MSSQL Preview query:', query);
 
       const result = await connection.request().query(query);
@@ -1281,7 +1311,7 @@ app.post('/api/templates/:id/execute', requireAuth, async (req, res) => {
 
     // --- 1. Connect to SOURCE and fetch data ---
     const sourceConfig = {
-      user: sourceDetails.username,
+      user: sourceDetails.user,
       password: sourceDetails.password,
       server: sourceDetails.host, // FIX: Map host to server
       database: sourceDetails.database,
@@ -1298,7 +1328,7 @@ app.post('/api/templates/:id/execute', requireAuth, async (req, res) => {
 
     // --- 2. Connect to DESTINATION, get schema, and perform bulk insert ---
     const destConfig = {
-      user: destDetails.username,
+      user: destDetails.user,
       password: destDetails.password,
       server: destDetails.host, // FIX: Map host to server
       database: destDetails.database,

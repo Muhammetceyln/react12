@@ -2,9 +2,9 @@ import { useState, useEffect } from 'react';
 import { Routes, Route, useNavigate, useLocation, Outlet, Link } from 'react-router-dom';
 import {
   Box, List, ListItemButton, ListItemIcon, ListItemText, Divider,
-  Button, IconButton, Tooltip, Typography
+  Button, IconButton, Tooltip, Typography, ListSubheader
 } from '@mui/material';
-
+import AccessTimeIcon from '@mui/icons-material/AccessTime';
 // Gerekli ikonları import edelim
 import BuildIcon from '@mui/icons-material/Build';
 import SourceIcon from '@mui/icons-material/Source';
@@ -17,6 +17,7 @@ import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import BuilderView from './views/BuilderView.jsx';
 import SourcesView from './views/SourcesView.jsx';
 import DestinationsView from './views/DestinationsView.jsx';
+import JobView from './views/JobView.jsx';
 import LoginView from './views/LoginView.jsx';
 import RegisterView from './views/RegisterView.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
@@ -86,54 +87,47 @@ function MainLayout() {
         </Box>
         <Divider sx={{ bgcolor: '#444' }} />
 
-        {/* Menü Linkleri */}
+        {/* === GÜNCELLENMİŞ MENÜ LİNKLERİ === */}
         <List component="nav" sx={{ flexGrow: 1 }}>
-          {/* 2. onClick'ler navigate kullanacak, selected ise location.pathname'i kontrol edecek */}
+
+          {/* --- KATEGORİ: Flow Designer --- */}
+          {isSidebarOpen && <ListSubheader sx={{ bgcolor: '#1e2128', color: 'grey.500', textTransform: 'uppercase', fontSize: '0.75rem' }}>Flow Designer</ListSubheader>}
           <ListItemButton selected={location.pathname === '/builder' || location.pathname === '/'} onClick={() => navigate('/builder')}>
-            <ListItemIcon sx={{ color: 'inherit' }}><BuildIcon /></ListItemIcon>
+            <ListItemIcon sx={{ minWidth: 0, mr: isSidebarOpen ? 3 : 'auto', justifyContent: 'center', color: 'inherit' }}><BuildIcon /></ListItemIcon>
             {isSidebarOpen && <ListItemText primary="Builder" />}
           </ListItemButton>
+
+          <Divider sx={{ bgcolor: '#444', my: 1 }} />
+
+          {/* --- KATEGORİ: Configuration --- */}
+          {isSidebarOpen && <ListSubheader sx={{ bgcolor: '#1e2128', color: 'grey.500', textTransform: 'uppercase', fontSize: '0.75rem' }}>Configuration</ListSubheader>}
           <ListItemButton selected={location.pathname === '/sources'} onClick={() => navigate('/sources')}>
-            <ListItemIcon sx={{ color: 'inherit' }}><SourceIcon /></ListItemIcon>
-            {isSidebarOpen && <ListItemText primary="Sources" />}
+            <ListItemIcon sx={{ minWidth: 0, mr: isSidebarOpen ? 3 : 'auto', justifyContent: 'center', color: 'inherit' }}><SourceIcon /></ListItemIcon>
+            {isSidebarOpen && <ListItemText primary="Manage Sources" />}
           </ListItemButton>
           <ListItemButton selected={location.pathname === '/destinations'} onClick={() => navigate('/destinations')}>
-            <ListItemIcon sx={{ color: 'inherit' }}><OutputIcon /></ListItemIcon>
-            {isSidebarOpen && <ListItemText primary="Destinations" />}
+            <ListItemIcon sx={{ minWidth: 0, mr: isSidebarOpen ? 3 : 'auto', justifyContent: 'center', color: 'inherit' }}><OutputIcon /></ListItemIcon>
+            {isSidebarOpen && <ListItemText primary="Manage Destinations" />}
           </ListItemButton>
+          <ListItemButton selected={location.pathname === '/jobpage'} onClick={() => navigate('/jobpage')}>
+            <ListItemIcon sx={{ minWidth: 0, mr: isSidebarOpen ? 3 : 'auto', justifyContent: 'center', color: 'inherit' }}><AccessTimeIcon /></ListItemIcon>
+            {isSidebarOpen && <ListItemText primary="Scheduled Jobs" />}
+          </ListItemButton>
+
         </List>
+        {/* === MENÜ LİNKLERİ SONU === */}
+
         <Divider sx={{ bgcolor: '#444' }} />
 
         {/* Logout Butonu */}
-        {/* Logout Butonu */}
         <Box sx={{ display: 'flex', justifyContent: 'center', p: 1.5 }}>
           {isSidebarOpen ? (
-            // MENÜ AÇIKKEN GÖSTERİLECEK BÜYÜK BUTON
-            <Button
-              variant="contained"
-              startIcon={<LogoutIcon />}
-              onClick={handleLogout}
-              fullWidth
-              sx={{
-                height: 44, // Butonu daha büyük yapalım
-                justifyContent: 'flex-start',
-                textTransform: 'none',
-                fontSize: '1rem'
-              }}
-            >
+            <Button variant="contained" startIcon={<LogoutIcon />} onClick={handleLogout} fullWidth sx={{ height: 44, justifyContent: 'flex-start', textTransform: 'none', fontSize: '1rem' }}>
               Logout
             </Button>
           ) : (
-            // MENÜ KAPALIYKEN GÖSTERİLECEK SADECE İKON
             <Tooltip title="Logout" placement="right">
-              <IconButton
-                onClick={handleLogout}
-                sx={{
-                  color: '#fff',
-                  bgcolor: 'rgba(255, 255, 255, 0.08)',
-                  '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.15)' }
-                }}
-              >
+              <IconButton onClick={handleLogout} sx={{ color: '#fff', bgcolor: 'rgba(255, 255, 255, 0.08)', '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.15)' } }}>
                 <LogoutIcon />
               </IconButton>
             </Tooltip>
@@ -143,12 +137,12 @@ function MainLayout() {
 
       {/* ANA İÇERİK ALANI */}
       <Box component="main" sx={{ flexGrow: 1, height: '100vh', overflow: 'auto' }}>
-        {/* 3. Router'ın çocuk route'ları render edeceği yer */}
         <Outlet />
       </Box>
     </Box>
   );
 }
+
 
 // Ana App Component'i (Sadece Yönlendirme)
 function App() {
@@ -164,6 +158,7 @@ function App() {
           <Route path="builder" element={<BuilderView />} />
           <Route path="sources" element={<SourcesView />} />
           <Route path="destinations" element={<DestinationsView />} />
+          <Route path="jobpage" element={<JobView />} />
         </Route>
       </Route>
     </Routes>

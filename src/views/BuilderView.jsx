@@ -515,6 +515,7 @@ function Builder() {
               nodeTypes={nodeTypes}
               defaultViewport={{ x: 50, y: 50, zoom: 0.8 }}
               fitViewOptions={{ maxZoom: 1.2, minZoom: 0.5 }}
+              deleteKeyCode="Delete"
             >
               <Background />
               <Controls />

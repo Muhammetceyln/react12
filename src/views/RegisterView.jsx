@@ -53,7 +53,7 @@ const RegisterView = () => {
           <TextField name="name" label="NAME" required fullWidth margin="normal" value={formData.name} onChange={handleChange} />
           <TextField name="surname" label="SURNAME" required fullWidth margin="normal" value={formData.surname} onChange={handleChange} />
           <TextField name="username" label="USER NAME" required fullWidth margin="normal" value={formData.username} onChange={handleChange} />
-          <TextField name="mail" label="E-mail" type="email" required fullWidth margin="normal" value={formData.mail} onChange={handleChange} />
+          <TextField name="mail" label="E-MAIL" type="email" required fullWidth margin="normal" value={formData.mail} onChange={handleChange} />
           <TextField name="password" label="PASSWORD" type="password" required fullWidth margin="normal" value={formData.password} onChange={handleChange} />
           {error && <Typography color="error" variant="body2" sx={{ mt: 1 }}>{error}</Typography>}
           {success && <Typography color="primary" variant="body2" sx={{ mt: 1 }}>{success}</Typography>}

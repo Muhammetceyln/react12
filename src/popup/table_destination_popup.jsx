@@ -24,6 +24,10 @@ import {
     TextField,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
+import '../css/table_source_popup_css.css'
+import sapIcon from '../photo/sapicon.png';
+import sapHana from '../photo/saphana.png';
+import mssqlLogo from '../photo/mssqllogo.png';
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 
 /**
@@ -372,7 +376,7 @@ export default function TableDestinationPopup({ open, setOpen, onSave, sourceDat
 
     return (
         <>
-            <Dialog open={open} onClose={handleCancel} maxWidth="lg" fullWidth>
+            <Dialog open={open} onClose={handleCancel} fullWidth>
                 <DialogTitle sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <Typography variant="h6">Table Destination Configuration</Typography>
                     <IconButton onClick={handleCancel} size="small">
@@ -381,33 +385,38 @@ export default function TableDestinationPopup({ open, setOpen, onSave, sourceDat
                 </DialogTitle>
 
                 <DialogContent dividers>
-                    <Typography variant="body2" sx={{ mb: 3, color: "text.secondary" }}>
-                        Select a destination database and map source columns to destination columns.
-                    </Typography>
 
                     {/* Source Data Info */}
                     {sourceData && (
-                        <Paper sx={{ p: 2, mb: 3, bgcolor: 'info.50', border: '1px solid', borderColor: 'info.main' }}>
-                            <Typography variant="subtitle1" sx={{ mb: 1, color: 'info.dark', fontWeight: 600 }}>
-                                📊 Source Table: {sourceData.fullTableName}
-                            </Typography>
-                            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                                {sourceData.selectedColumns?.map((col, index) => (
-                                    <Chip key={index} label={col} size="small" color="info" variant="outlined" />
-                                ))}
-                            </Box>
-                        </Paper>
+<Paper sx={{
+    p: 2,
+    mb: 3,
+    bgcolor: 'info.50',
+    border: '1px solid',
+    borderColor: 'info.main',
+    width: 552 // ✨ Genişliği 100px olarak ayarlar
+}}>
+    <Typography variant="subtitle1" sx={{ mb: 1, color: 'info.dark', fontWeight: 600 }}>
+        📊 Source Table: {sourceData.fullTableName}
+    </Typography>
+    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+        {sourceData.selectedColumns?.map((col, index) => (
+            <Chip key={index} label={col} size="small" color="info" variant="outlined" />
+        ))}
+    </Box>
+</Paper>
                     )}
 
                     {/* Destination Connection Selection */}
                     <Box sx={{ mb: 3 }}>
                         <FormControl fullWidth>
-                            <InputLabel>Destination Connection</InputLabel>
+                            <InputLabel className="fontSizelbl">Destination Connection</InputLabel>
                             <Select
                                 value={selectedConnection}
                                 label="Destination Connection"
                                 onChange={(e) => handleConnectionChange(e.target.value)}
                                 disabled={loading}
+                                className="small-select"
                             >
                                 {loading ? (
                                     <MenuItem disabled>
@@ -428,12 +437,13 @@ export default function TableDestinationPopup({ open, setOpen, onSave, sourceDat
                     {selectedConnection && (
                         <Box sx={{ mb: 3 }}>
                             <FormControl fullWidth>
-                                <InputLabel>Schema</InputLabel>
+                                <InputLabel className="fontSizelbl" >Schema</InputLabel>
                                 <Select
                                     value={selectedSchema}
                                     label="Schema"
                                     onChange={(e) => handleSchemaChange(e.target.value)}
                                     disabled={loadingSchemas}
+                                    className="small-select"
                                 >
                                     {loadingSchemas ? (
                                         <MenuItem disabled>
@@ -455,12 +465,13 @@ export default function TableDestinationPopup({ open, setOpen, onSave, sourceDat
                     {selectedSchema && (
                         <Box sx={{ mb: 3 }}>
                             <FormControl fullWidth>
-                                <InputLabel>Destination Table</InputLabel>
+                                <InputLabel className="fontSizelbl">Destination Table</InputLabel>
                                 <Select
                                     value={selectedTable}
                                     label="Destination Table"
                                     onChange={(e) => handleTableChange(e.target.value)}
                                     disabled={loadingTables}
+                                    className="small-select"
                                 >
                                     {loadingTables ? (
                                         <MenuItem disabled>
@@ -481,65 +492,8 @@ export default function TableDestinationPopup({ open, setOpen, onSave, sourceDat
                     {/* Column Mapping */}
                     {selectedTable && (
                         <Box>
-                            <Divider sx={{ my: 2 }} />
-                            <Typography variant="h6" sx={{ mb: 2 }}>
-                                Column Mapping
-                            </Typography>
                             
-                            {loadingColumns ? (
-                                <Box sx={{ display: "flex", alignItems: "center", gap: 1, py: 4 }}>
-                                    <CircularProgress size={16} />
-                                    <Typography variant="body2">Loading destination columns...</Typography>
-                                </Box>
-                            ) : (
-                                <Grid container spacing={2}>
-                                    {/* Source Columns */}
-                                    <Grid item xs={5}>
-                                        <Paper sx={{ p: 2, bgcolor: 'primary.50', border: '1px solid', borderColor: 'primary.main' }}>
-                                            <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 600 }}>
-                                                Source Columns
-                                            </Typography>
-                                            <List dense>
-                                                {sourceData?.selectedColumns?.map((sourceCol, index) => (
-                                                    <ListItem key={index} sx={{ px: 1 }}>
-                                                        <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                                                            {sourceCol}
-                                                        </Typography>
-                                                    </ListItem>
-                                                ))}
-                                            </List>
-                                        </Paper>
-                                    </Grid>
 
-                                    {/* Arrow */}
-                                    <Grid item xs={2} sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                                        <ArrowForwardIcon sx={{ fontSize: 32, color: 'primary.main' }} />
-                                    </Grid>
-
-                                    {/* Destination Columns */}
-                                    <Grid item xs={5}>
-                                        <Paper sx={{ p: 2, bgcolor: 'success.50', border: '1px solid', borderColor: 'success.main' }}>
-                                            <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 600 }}>
-                                                Destination Columns
-                                            </Typography>
-                                            <List dense>
-                                                {destColumns.map((destCol, index) => (
-                                                    <ListItem key={index} sx={{ px: 1 }}>
-                                                        <Box sx={{ width: '100%' }}>
-                                                            <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                                                                {destCol.name}
-                                                            </Typography>
-                                                            <Typography variant="caption" color="text.secondary">
-                                                                {destCol.type}{destCol.length ? `(${destCol.length})` : ''}
-                                                            </Typography>
-                                                        </Box>
-                                                    </ListItem>
-                                                ))}
-                                            </List>
-                                        </Paper>
-                                    </Grid>
-                                </Grid>
-                            )}
 
                             {/* Mapping Controls */}
                             {destColumns.length > 0 && sourceData?.selectedColumns && (
@@ -606,7 +560,7 @@ export default function TableDestinationPopup({ open, setOpen, onSave, sourceDat
                             Object.keys(columnMappings).filter(key => columnMappings[key]).length === 0
                         }
                     >
-                        Save Destination Mapping
+                        Save
                     </Button>
                 </DialogActions>
             </Dialog>

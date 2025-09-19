@@ -49,12 +49,12 @@ const Sidebar = ({ openFlows, activeFlowId, onSwitchFlow, onNewFlow, savedTempla
           <Typography sx={{ fontWeight: 'bold' }}>Sources</Typography>
         </AccordionSummary>
         <AccordionDetails>
-          <Box sx={nodeStyle} onDragStart={(event) => onDragStart(event, 'bapi')} draggable>BAPI</Box>
-          <Box sx={nodeStyle} onDragStart={(event) => onDragStart(event, 'query')} draggable>Query</Box>
+          <Box sx={nodeStyle} onDragStart={(event) => onDragStart(event, 'bapi')} draggable>BAPI/RFC</Box>
           <Box sx={nodeStyle} onDragStart={(event) => onDragStart(event, 'tableSource')} draggable>Table</Box>
+          <Box sx={nodeStyle} onDragStart={(event) => onDragStart(event, 'query')} draggable>Query</Box>
         </AccordionDetails>
       </Accordion>
-      
+
       {/* --- DESTINATIONS SECTION (ADDED BACK) --- */}
       <Accordion>
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
@@ -72,18 +72,18 @@ const Sidebar = ({ openFlows, activeFlowId, onSwitchFlow, onNewFlow, savedTempla
       <Typography variant="h6" sx={{ fontWeight: 'bold' }}>Saved Flows</Typography>
       <Box sx={{ overflowY: 'auto', flex: 1 }}>
         <List dense>
-            {savedTemplates && savedTemplates.length > 0 ? (
-                savedTemplates.map((template) => (
-                    <ListItem key={template.ID} disablePadding>
-                        <ListItemButton onClick={() => onLoadTemplate(template.ID, template.TEMPLATE_NAME)}>
-                            <ListItemIcon sx={{ minWidth: '32px' }}><FolderOpenIcon fontSize="small" /></ListItemIcon>
-                            <ListItemText primary={template.TEMPLATE_NAME} />
-                        </ListItemButton>
-                    </ListItem>
-                ))
-            ) : (
-                <ListItem><ListItemText secondary="You don't have any saved flows yet." /></ListItem>
-            )}
+          {savedTemplates && savedTemplates.length > 0 ? (
+            savedTemplates.map((template) => (
+              <ListItem key={template.ID} disablePadding>
+                <ListItemButton onClick={() => onLoadTemplate(template.ID, template.TEMPLATE_NAME)}>
+                  <ListItemIcon sx={{ minWidth: '32px' }}><FolderOpenIcon fontSize="small" /></ListItemIcon>
+                  <ListItemText primary={template.TEMPLATE_NAME} />
+                </ListItemButton>
+              </ListItem>
+            ))
+          ) : (
+            <ListItem><ListItemText secondary="You don't have any saved flows yet." /></ListItem>
+          )}
         </List>
       </Box>
     </Box>

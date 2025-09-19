@@ -257,7 +257,7 @@ const DestinationList = () => {
           bgcolor: "#f5f7ff",
           borderRadius: 2,
           border: "1px solid #d0d7ff",
-          maxHeight: 400,
+          maxHeight: 'calc(100vh - 260px)',
           overflowY: "auto",
         }}
       >
