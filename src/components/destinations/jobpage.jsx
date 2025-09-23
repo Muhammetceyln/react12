@@ -1,209 +1,171 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
     Box, Button, Paper, TableContainer, Table, TableHead, TableBody, TableRow, TableCell,
-    Dialog, DialogTitle, DialogContent, DialogActions, TextField, Checkbox, FormControlLabel,
-    Select, MenuItem, IconButton, Typography, Chip, Stack, InputLabel, FormControl, Tooltip
+    IconButton, Typography, Chip, Stack, Tooltip
 } from '@mui/material';
 import {
     PlayCircleOutline as RunIcon,
     StopCircleOutlined as StopIcon,
     AddCircleOutline as CreateIcon,
-    DeleteOutline as DeleteIcon,
+    Delete as DeleteIcon,
     Edit as EditIcon,
-    Save as SaveIcon,
-    Cancel as CancelIcon,
     HourglassTop as PendingIcon,
 } from '@mui/icons-material';
 import { format } from 'date-fns';
-import { EditCalendar as EditPatternIcon } from '@mui/icons-material';
-import PatternSelectorPopup from "../../popup/PatternSelectorPopup.jsx";
+import JobPopup from '../../popup/JobPopup.jsx';//popup
 
 // --- BİLEŞENLER ---
 
 const StatusIndicator = ({ status }) => {
+    // Gelen status değerine göre durumu belirle
+    let currentStatus = status;
+    if (status === true) {
+        currentStatus = 'Running';
+    } else if (status === false) {
+        currentStatus = 'Stopped';
+    }
+
     const statusConfig = {
         'Stopped': { label: 'Stopped', color: 'error', icon: <StopIcon /> },
         'Running': { label: 'Running', color: 'success', icon: <RunIcon /> },
         'Pending': { label: 'Pending', color: 'warning', icon: <PendingIcon /> }
     };
-    const config = statusConfig[status] || { label: 'Unknown', color: 'default' };
+
+    // Belirlenen duruma göre config'i al
+    const config = statusConfig[currentStatus] || { label: 'Unknown', color: 'default' };
+
     return <Chip icon={config.icon} label={config.label} color={config.color} size="small" variant="outlined" />;
 };
-
-const JobPopup = ({ open, onClose, onSave, job }) => {
-    const [formData, setFormData] = useState({});
-    const [isPatternPopupOpen, setPatternPopupOpen] = useState(false);
-
-    useEffect(() => {
-        if (job) {
-            setFormData({ ...job });
-        } else {
-            setFormData({ name: '', description: '', enabled: true, object: 'Flow_1', pattern: '*/5 * * * * *' });
-        }
-    }, [job, open]);
-
-    const handleChange = (event) => {
-        const { name, value, type, checked } = event.target;
-        setFormData(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
-    };
-
-    const handleSave = () => {
-        onSave(formData);
-        onClose();
-    };
-
-    const handleApplyPattern = (newPattern) => {
-        setFormData(prev => ({ ...prev, pattern: newPattern }));
-        setPatternPopupOpen(false); // Pattern seçildikten sonra popup'ı kapat
-    };
-
-    return (
-        <>
-            <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-                <DialogTitle>{job ? 'Edit Job' : 'Create New Job'}</DialogTitle>
-                <DialogContent>
-                    <Stack spacing={2} sx={{ mt: 2 }}>
-                        <TextField name="name" label="Name" value={formData.name || ''} onChange={handleChange} fullWidth />
-                        <TextField name="description" label="Description" value={formData.description || ''} onChange={handleChange} fullWidth />
-                        <FormControl fullWidth>
-                            <InputLabel>Object (Flow)</InputLabel>
-                            <Select name="object" value={formData.object || ''} label="Object (Flow)" onChange={handleChange}>
-                                <MenuItem value="Flow_1">KalyonMii/Flows/Flow_1</MenuItem>
-                                <MenuItem value="Flow_2">KalyonMii/Flows/Flow_2</MenuItem>
-                                <MenuItem value="Flow_3">KalyonMii/Flows/Process_Data</MenuItem>
-                            </Select>
-                        </FormControl>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <TextField
-                                name="pattern"
-                                label="Pattern (Cron Expression)"
-                                value={formData.pattern || ''}
-                                fullWidth
-                                // GÜNCELLEME: Sadece okunur yapıldı ve helper text güncellendi
-                                InputProps={{ readOnly: true }}
-                                helperText="Click the icon to build a pattern visually"
-                            />
-                            <IconButton color="primary" onClick={() => setPatternPopupOpen(true)}>
-                                <EditPatternIcon />
-                            </IconButton>
-                        </Box>
-                        <FormControlLabel control={<Checkbox name="enabled" checked={formData.enabled || false} onChange={handleChange} />} label="Enabled (Start immediately after saving)" />
-                    </Stack>
-                </DialogContent>
-                <DialogActions>
-                    <Button onClick={onClose}>Cancel</Button>
-                    <Button onClick={handleSave} variant="contained">Save</Button>
-                </DialogActions>
-            </Dialog>
-            {<PatternSelectorPopup
-                open={isPatternPopupOpen}
-                onClose={() => setPatternPopupOpen(false)}
-                onApply={handleApplyPattern}
-                initialPattern={formData.pattern || ''}
-            />}
-        </>
-    );
-};
-
 // ANA SAYFA BİLEŞENİ
-const SchedulerPage = () => {
+const JobPage = () => {
     const [jobs, setJobs] = useState([]);
     const [selectedJobId, setSelectedJobId] = useState(null);
     const [isPopupOpen, setPopupOpen] = useState(false);
     const [editingJob, setEditingJob] = useState(null);
-    const [runningTasks, setRunningTasks] = useState({});
+    const [loading, setLoading] = useState(false);
+    const [templates, setTemplates] = useState([]);
 
-    // DÜZELTME: `cron-parser` yerine `setInterval` kullanarak daha stabil bir simülasyon
-    const parseIntervalFromCron = (pattern) => {
-        // Sadece '*/X * * * * *' formatını destekleyen basit bir parser
-        const match = pattern.match(/^\*\/(\d+)/);
-        if (match && match[1]) {
-            return parseInt(match[1], 10) * 1000; // Milisaniyeye çevir
-        }
-        return null; // Geçersiz veya desteklenmeyen format
+    // API işlemleri için helper fonksiyonlar
+    const getAuthToken = () => {
+        return localStorage.getItem('authToken');
     };
 
-    const startJob = useCallback((jobToStart) => {
-        if (runningTasks[jobToStart.id]) return; // Zaten çalışıyorsa tekrar başlatma
-
-        const intervalMs = parseIntervalFromCron(jobToStart.pattern);
-        if (!intervalMs) {
-            console.error(`Invalid or unsupported cron pattern for job ${jobToStart.name}: ${jobToStart.pattern}`);
-            setJobs(prev => prev.map(j => j.id === jobToStart.id ? { ...j, status: 'Stopped', nextRunTime: 'Invalid Pattern' } : j));
-            return;
-        }
-
-        const run = () => {
-            console.log(`Job ${jobToStart.name} executed!`);
-            setJobs(prev => prev.map(j => j.id === jobToStart.id ? { ...j, nextRunTime: new Date(Date.now() + intervalMs) } : j));
-        };
-
-        run(); // Hemen bir kere çalıştır ve sonraki zamanı ayarla
-        const intervalId = setInterval(run, intervalMs);
-
-        setRunningTasks(prev => ({ ...prev, [jobToStart.id]: intervalId }));
-        setJobs(prev => prev.map(j => j.id === jobToStart.id ? { ...j, status: 'Running' } : j));
-
-    }, [runningTasks]);
-
-    const stopJob = useCallback((jobToStop) => {
-        const intervalId = runningTasks[jobToStop.id];
-        if (intervalId) {
-            clearInterval(intervalId);
-            setRunningTasks(prev => {
-                const newTasks = { ...prev };
-                delete newTasks[jobToStop.id];
-                return newTasks;
-            });
-        }
-        setJobs(prev => prev.map(j => j.id === jobToStop.id ? { ...j, status: 'Stopped', nextRunTime: null } : j));
-    }, [runningTasks]);
-
-    useEffect(() => {
-        const initialJobs = [
-            { id: 1, name: 'BRICK_PROCESS', description: 'Periodic Brick Data Processing', enabled: true, object: 'Flow_1', pattern: '*/10 * * * * *', status: 'Stopped', nextRunTime: null },
-            { id: 2, name: 'CELL_DATA_TRANSFER', description: 'Transfer Cell Flash Data', enabled: false, object: 'Flow_2', pattern: '*/30 * * * * *', status: 'Stopped', nextRunTime: null },
-        ];
-
-        setJobs(initialJobs);
-        initialJobs.forEach(job => {
-            if (job.enabled) {
-                startJob(job);
+    const apiCall = async (url, options = {}) => {
+        const token = getAuthToken();
+        const response = await fetch(`http://localhost:3001${url}`, {
+            ...options,
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+                ...options.headers
             }
         });
 
-        return () => {
-            Object.values(runningTasks).forEach(intervalId => clearInterval(intervalId));
-        };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
-
-    const handleSaveJob = (jobData) => {
-        let savedJob;
-        if (jobData.id) { // Edit
-            setJobs(prev => prev.map(j => j.id === jobData.id ? jobData : j));
-            savedJob = jobData;
-        } else { // Create
-            savedJob = { ...jobData, id: Date.now(), status: 'Stopped', nextRunTime: null };
-            setJobs(prev => [...prev, savedJob]);
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.message || 'API hatası');
         }
 
-        if (savedJob.enabled) {
-            startJob(savedJob);
-        } else {
-            stopJob(savedJob);
+        return response.json();
+    };
+
+
+    const fetchTemplates = useCallback(async () => {
+        try {
+            const data = await apiCall('/api/templates');
+            setTemplates(data);
+        } catch (error) {
+            console.error('Error while loading templates:', error);
+        }
+    }, []);
+
+
+    // Jobs listesini backend'den getir
+    const fetchJobs = useCallback(async () => {
+        setLoading(true);
+        try {
+            const data = await apiCall('/api/jobs');
+            // Template adını job listesine eklemek için template'leri kullan
+            const jobsWithTemplateNames = data.map(job => {
+                const template = templates.find(t => t.ID === job.TEMPLATE_ID);
+                return {
+                    ...job,
+                    id: job.ID, // Kolay erişim için
+                    templateName: template ? template.TEMPLATE_NAME : 'N/A'
+                };
+            });
+            setJobs(jobsWithTemplateNames);
+        } catch (error) {
+            console.error('Error while loading jobs:', error);
+        } finally {
+            setLoading(false);
+        }
+    }, [templates]); // templates değiştiğinde fetchJobs'u yeniden oluştur
+
+    const startJob = async (job) => {
+        try {
+            await apiCall(`/api/jobs/${job.id}/start`, { method: 'POST' });
+            await fetchJobs(); // Listeyi yeniden yükle
+        } catch (error) {
+            console.error('Error while starting job:', error);
         }
     };
 
-    const handleDeleteJob = (jobId) => {
-        stopJob(jobs.find(j => j.id === jobId));
-        setJobs(prev => prev.filter(j => j.id !== jobId));
-        if (selectedJobId === jobId) setSelectedJobId(null);
+    const stopJob = async (job) => {
+        try {
+            await apiCall(`/api/jobs/${job.id}/stop`, { method: 'POST' });
+            await fetchJobs(); // Listeyi yeniden yükle
+        } catch (error) {
+            console.error('Error while stopping job:', error);
+        }
+    };
+
+    useEffect(() => {
+        // Component yüklendiğinde template'leri bir kere çek
+        fetchTemplates();
+    }, [fetchTemplates]);
+
+    useEffect(() => {
+        fetchJobs();
+    }, [fetchJobs]);
+
+
+
+
+    // Job kaydetme (oluşturma/güncelleme)
+    const handleSaveJob = async (jobData) => {
+        const { id, name, description, pattern, enabled, templateId } = jobData;
+        const isEditing = !!id;
+
+        const method = isEditing ? 'PUT' : 'POST';
+        const url = isEditing ? `/api/jobs/${id}` : '/api/jobs';
+        const body = JSON.stringify({ name, description, pattern, enabled, templateId });
+
+        try {
+            await apiCall(url, { method, body });
+            await fetchJobs(); // İşlem sonrası listeyi yenile
+        } catch (error) {
+            console.error('Job save error:', error);
+            // Burada kullanıcıya bir bildirim (snackbar) göstermek faydalı olabilir.
+        }
+    };
+
+    // Job silme
+    const handleDeleteJob = async (jobId) => {
+        try {
+            await apiCall(`/api/jobs/${jobId}`, { method: 'DELETE' });
+            // Silinen job seçili ise seçimi kaldır
+            if (selectedJobId === jobId) setSelectedJobId(null);
+            await fetchJobs(); // İşlem sonrası listeyi yenile
+        } catch (error) {
+            console.error('Job delete error:', error);
+            // Burada kullanıcıya bir bildirim (snackbar) göstermek faydalı olabilir.
+        }
     };
 
     const selectedJob = jobs.find(j => j.id === selectedJobId);
 
-    const handleRunStopToggle = () => {
+    const handleRunStopToggle = (e) => {
         if (!selectedJob) return;
         if (selectedJob.status === 'Running') {
             stopJob(selectedJob);
@@ -224,7 +186,7 @@ const SchedulerPage = () => {
             <Paper elevation={2} sx={{ mb: 2, p: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
                 <Button variant="outlined" startIcon={<CreateIcon />} onClick={() => { setEditingJob(null); setPopupOpen(true); }}>Create</Button>
                 <Box sx={{ flexGrow: 1 }} />
-                <Button variant="contained" startIcon={selectedJob?.status === 'Running' ? <StopIcon /> : <RunIcon />} color={selectedJob?.status === 'Running' ? 'error' : 'success'} onClick={handleRunStopToggle} disabled={!selectedJob}>
+                <Button variant="contained" startIcon={selectedJob?.STATUS === 'Running' ? <StopIcon /> : <RunIcon />} color={selectedJob?.STATUS === 'Running' ? 'error' : 'success'} onClick={handleRunStopToggle} disabled={!selectedJob}>
                     {selectedJob?.status === 'Running' ? 'Stop' : 'Run'}
                 </Button>
             </Paper>
@@ -232,16 +194,21 @@ const SchedulerPage = () => {
                 <Table stickyHeader size="small">
                     <TableHead>
                         <TableRow>
-                            {['ID', 'Name', 'Next Run Time', 'Object', 'Description', 'Status', 'Actions'].map(col => <TableCell key={col} sx={{ fontWeight: 'bold' }}>{col}</TableCell>)}
+                            {['ID', 'Name', 'Next Run Time', 'Template', 'Description', 'Status', 'Actions'].map(col => <TableCell key={col} sx={{ fontWeight: 'bold' }}>{col}</TableCell>)}
                         </TableRow>
                     </TableHead>
                     <TableBody>
                         {jobs.map((job) => (
                             <TableRow key={job.id} hover onClick={() => setSelectedJobId(job.id)} selected={selectedJobId === job.id} sx={{ cursor: 'pointer' }}>
                                 <TableCell>{job.id}</TableCell>
-                                <TableCell>{job.name}</TableCell>
-                                <TableCell>{job.nextRunTime ? format(job.nextRunTime, 'PPpp') : 'N/A'}</TableCell>
-                                <TableCell>{job.object}</TableCell>
+                                <TableCell>{job.NAME}</TableCell>
+                                <TableCell>
+                                    {job.NEXT_RUN_AT ?
+                                        format(new Date(job.NEXT_RUN_AT), 'PPpp') :
+                                        (job.PATTERN ? 'Scheduled' : 'N/A')
+                                    }
+                                </TableCell>
+                                <TableCell>{job.templateName}</TableCell>
                                 <TableCell>{job.description}</TableCell>
                                 <TableCell><StatusIndicator status={job.status} /></TableCell>
                                 <TableCell align="right">
@@ -264,9 +231,9 @@ const SchedulerPage = () => {
                     </TableBody>
                 </Table>
             </TableContainer>
-            <JobPopup open={isPopupOpen} onClose={() => setPopupOpen(false)} onSave={handleSaveJob} job={editingJob} />
+            <JobPopup open={isPopupOpen} onClose={() => setPopupOpen(false)} onSave={handleSaveJob} job={editingJob} templates={templates} />
         </Box>
     );
 };
 
-export default SchedulerPage;
+export default JobPage;

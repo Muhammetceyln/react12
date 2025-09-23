@@ -27,31 +27,74 @@ dotenv.config({ path: path.join(__dirname, '../.env') });
 const app = express();
 const PORT = 3001;
 
-/* const job1 = cron.schedule('10 * * * * *', () => {
-  // Bu fonksiyon her dakika çalışacak
-  const timestamp = new Date().toLocaleString("tr-TR");
-  console.log(`🕒 Zamanlanmış görev çalıştı1: ${timestamp} - Veritabanı kontrol ediliyor...`);
+// --- CRON JOB YÖNETİCİSİ ---
+class JobManager {
+  constructor() {
+    this.jobs = new Map(); // jobId -> { task, config }
+  }
 
+  createJob(jobId, pattern, callback) {
+    if (this.jobs.has(jobId)) {
+      this.stopJob(jobId);
+    }
 
-});
+    try {
+      const task = cron.schedule(pattern, callback, { scheduled: false });
+      this.jobs.set(jobId, { task, pattern, callback });
+      console.log(`✅ Job ${jobId} oluşturuldu: ${pattern}`);
+      return true;
+    } catch (error) {
+      console.error(`❌ Job ${jobId} oluşturulamadı:`, error);
+      return false;
+    }
+  }
 
-const job2 = cron.schedule('yıldız slash var5 * * * * *', () => {
-  // Bu fonksiyon her dakika çalışacak
-  const timestamp = new Date().toLocaleString("tr-TR");
-  console.log(`🕒 Zamanlanmış görev çalıştı2: ${timestamp} - Veritabanı kontrol ediliyor...`);
+  startJob(jobId) {
+    const job = this.jobs.get(jobId);
+    if (job) {
+      job.task.start();
+      console.log(`▶️ Job ${jobId} başlatıldı`);
+      return true;
+    }
+    return false;
+  }
 
+  stopJob(jobId) {
+    const job = this.jobs.get(jobId);
+    if (job) {
+      job.task.stop();
+      console.log(`⏸️ Job ${jobId} durduruldu`);
+      return true;
+    }
+    return false;
+  }
 
-});
+  destroyJob(jobId) {
+    const job = this.jobs.get(jobId);
+    if (job) {
+      job.task.destroy();
+      this.jobs.delete(jobId);
+      console.log(`🗑️ Job ${jobId} silindi`);
+      return true;
+    }
+    return false;
+  }
 
-job2.stop
+  getJobStatus(jobId) {
+    const job = this.jobs.get(jobId);
+    return job ? (job.task.getStatus() || 'stopped') : null;
+  }
 
-const job3 = cron.schedule('2 * * * * *', () => {
-  // Bu fonksiyon her dakika çalışacak
-  const timestamp = new Date().toLocaleString("tr-TR");
-  console.log(`🕒 Zamanlanmış görev çalıştı3: ${timestamp} - Veritabanı kontrol ediliyor...`);
+  getAllJobs() {
+    return Array.from(this.jobs.entries()).map(([id, job]) => ({
+      id,
+      pattern: job.pattern,
+      status: job.task.getStatus() || 'stopped'
+    }));
+  }
+}
 
-
-}); */
+const jobManager = new JobManager();
 
 
 
@@ -1508,6 +1551,206 @@ app.post('/api/templates/:id/execute', requireAuth, async (req, res) => {
     if (destConnection && destConnection.connected) await destConnection.close();
   }
 });
+
+// ===================================================================================
+// == API ENDPOINT'LERİ (Basitleştirilmiş JOBS Tablosuna Göre Güncellendi)
+// ===================================================================================
+
+// [GET] /api/jobs - Tüm job'ları listele
+app.get('/api/jobs', requireAuth, async (req, res) => {
+  const userId = req.user.id;
+  try {
+    const pool = await poolPromise;
+    const result = await pool.request()
+      .input('USER_ID', sql.Int, userId)
+      .query(`
+                -- GÜNCELLEME: Sadece istenen 7 sütun seçiliyor. Frontend için alias (AS) kullanıldı.
+                SELECT 
+                    ID, 
+                    NAME, 
+                    DESCRIPTION AS description,
+                    PATTERN AS pattern,
+                    ENABLED AS enabled,
+                    TEMPLATE_ID AS templateId,
+                    STATUS AS status -- Frontend'in beklemesi muhtemel olan 'status' alias'ı eklendi
+                FROM [mosuser].[JOBS] 
+                WHERE USER_ID = @USER_ID 
+                ORDER BY ID DESC -- CREATED_AT kaldırıldığı için ID'ye göre sıralama yapıldı.
+            `);
+    res.status(200).json(result.recordset);
+  } catch (err) {
+    console.error('Jobs listesi getirme hatası:', err);
+    res.status(500).json({ message: 'Job listesi getirilemedi.' });
+  }
+});
+
+// [POST] /api/jobs - Yeni job oluştur
+app.post('/api/jobs', requireAuth, async (req, res) => {
+  const userId = req.user.id;
+  // GÜNCELLEME: Frontend'den gelen property isimleri (pattern, enabled, templateId)
+  //             veritabanı sütun isimleriyle (PATTERN, ENABLED, TEMPLATE_ID) eşleştiriliyor.
+  const { name, description, pattern, enabled, templateId } = req.body;
+
+  if (!name || !pattern || !templateId) {
+    return res.status(400).json({ message: 'Name, pattern ve templateId alanları gereklidir.' });
+  }
+
+  try {
+    const pool = await poolPromise;
+    const result = await pool.request()
+      .input('USER_ID', sql.Int, userId)
+      .input('NAME', sql.NVarChar, name)
+      .input('DESCRIPTION', sql.NVarChar, description || null) // Boş string yerine null daha iyi olabilir.
+      .input('PATTERN', sql.NVarChar, pattern)
+      .input('ENABLED', sql.Bit, enabled)
+      .input('TEMPLATE_ID', sql.Int, templateId)
+      // KALDIRILDI: STATUS ve CREATED_AT ile ilgili input'lar ve sütunlar kaldırıldı.
+      .query(`
+                INSERT INTO [mosuser].[JOBS] (USER_ID, NAME, DESCRIPTION, PATTERN, ENABLED, TEMPLATE_ID)
+                OUTPUT INSERTED.ID
+                VALUES (@USER_ID, @NAME, @DESCRIPTION, @PATTERN, @ENABLED, @TEMPLATE_ID)
+            `);
+
+    const jobId = result.recordset[0].ID;
+
+    if (enabled) {
+      // Bu kısım jobManager'ınızın çalışmasına bağlı, mantık aynı kalabilir.
+      const success = jobManager.createJob(jobId, pattern, () => executeTemplateForJob(jobId, templateId, userId));
+      if (success) {
+        jobManager.startJob(jobId);
+      }
+    }
+
+    res.status(201).json({ message: 'Job başarıyla oluşturuldu.', jobId: jobId });
+  } catch (err) {
+    console.error('Job oluşturma hatası:', err);
+    res.status(500).json({ message: 'Job oluşturulamadı.' });
+  }
+});
+
+// [PUT] /api/jobs/:id - Job güncelle
+app.put('/api/jobs/:id', requireAuth, async (req, res) => {
+  const userId = req.user.id;
+  const jobId = parseInt(req.params.id);
+  const { name, description, pattern, enabled, templateId } = req.body;
+
+  try {
+    const pool = await poolPromise;
+    // Yetki kontrolü
+    const ownership = await pool.request()
+      .input('USER_ID', sql.Int, userId)
+      .input('JOB_ID', sql.Int, jobId)
+      .query('SELECT ID FROM [mosuser].[JOBS] WHERE ID = @JOB_ID AND USER_ID = @USER_ID');
+
+    if (ownership.recordset.length === 0) {
+      return res.status(404).json({ message: 'Job bulunamadı veya yetkiniz yok.' });
+    }
+
+    // GÜNCELLEME: UPDATE sorgusu basitleştirilmiş tabloya göre düzenlendi.
+    await pool.request()
+      .input('JOB_ID', sql.Int, jobId)
+      .input('NAME', sql.NVarChar, name)
+      .input('DESCRIPTION', sql.NVarChar, description || null)
+      .input('PATTERN', sql.NVarChar, pattern)
+      .input('ENABLED', sql.Bit, enabled)
+      .input('TEMPLATE_ID', sql.Int, templateId || null)
+      .query(`
+                UPDATE [mosuser].[JOBS] 
+                SET NAME = @NAME, 
+                    DESCRIPTION = @DESCRIPTION, 
+                    PATTERN = @PATTERN, 
+                    ENABLED = @ENABLED, 
+                    TEMPLATE_ID = @TEMPLATE_ID
+                WHERE ID = @JOB_ID
+            `);
+
+    // Cron manager'daki görevi yeniden kur
+    jobManager.destroyJob(jobId);
+
+    if (enabled) {
+      const success = jobManager.createJob(jobId, pattern, () => executeTemplateForJob(jobId, templateId, userId));
+      if (success) {
+        jobManager.startJob(jobId);
+      }
+    }
+
+    res.status(200).json({ message: 'Job başarıyla güncellendi.' });
+  } catch (err) {
+    console.error('Job güncelleme hatası:', err);
+    res.status(500).json({ message: 'Job güncellenemedi.' });
+  }
+});
+
+// [DELETE] /api/jobs/:id - Job sil
+app.delete('/api/jobs/:id', requireAuth, async (req, res) => {
+  const userId = req.user.id;
+  const jobId = parseInt(req.params.id);
+
+  try {
+    const pool = await poolPromise;
+    const result = await pool.request()
+      .input('USER_ID', sql.Int, userId)
+      .input('JOB_ID', sql.Int, jobId)
+      .query('DELETE FROM [mosuser].[JOBS] WHERE ID = @JOB_ID AND USER_ID = @USER_ID');
+
+    if (result.rowsAffected[0] === 0) {
+      return res.status(404).json({ message: 'Job bulunamadı veya yetkiniz yok.' });
+    }
+
+    jobManager.destroyJob(jobId);
+    res.status(200).json({ message: 'Job başarıyla silindi.' });
+  } catch (err) {
+    console.error('Job silme hatası:', err);
+    res.status(500).json({ message: 'Job silinemedi.' });
+  }
+});
+
+// [POST] /api/jobs/:id/toggle - Job'u etkinleştir/devre dışı bırak
+app.post('/api/jobs/:id/toggle', requireAuth, async (req, res) => {
+  const userId = req.user.id;
+  const jobId = parseInt(req.params.id);
+
+  try {
+    const pool = await poolPromise;
+    // GÜNCELLEME: Sadece gerekli sütunlar seçiliyor.
+    const jobResult = await pool.request()
+      .input('USER_ID', sql.Int, userId)
+      .input('JOB_ID', sql.Int, jobId)
+      .query('SELECT ID, NAME, PATTERN, TEMPLATE_ID, ENABLED FROM [mosuser].[JOBS] WHERE ID = @JOB_ID AND USER_ID = @USER_ID');
+
+    if (jobResult.recordset.length === 0) {
+      return res.status(404).json({ message: 'Job bulunamadı.' });
+    }
+
+    const job = jobResult.recordset[0];
+    const newEnabledStatus = !job.ENABLED;
+
+    // GÜNCELLEME: Sadece ENABLED sütunu güncelleniyor.
+    await pool.request()
+      .input('JOB_ID', sql.Int, jobId)
+      .input('ENABLED', sql.Bit, newEnabledStatus)
+      .query('UPDATE [mosuser].[JOBS] SET ENABLED = @ENABLED WHERE ID = @JOB_ID');
+
+    if (newEnabledStatus) {
+      // Job'u etkinleştir
+      jobManager.createJob(job.ID, job.PATTERN, () => executeTemplateForJob(job.ID, job.TEMPLATE_ID, userId));
+      jobManager.startJob(jobId);
+    } else {
+      // Job'u devre dışı bırak
+      jobManager.destroyJob(jobId);
+    }
+
+    res.status(200).json({ message: `Job durumu başarıyla güncellendi.` });
+  } catch (err) {
+    console.error('Job toggle hatası:', err);
+    res.status(500).json({ message: 'Job durumu değiştirilemedi.' });
+  }
+});
+
+// ... Diğer endpoint'ler (start, stop, status) de benzer şekilde güncellenebilir ...
+// Not: Start ve Stop fonksiyonları artık toggle içinde yönetildiği için ayrı endpointlere gerek kalmayabilir.
+// Bu, frontend'deki Run/Stop butonunun artık "Enable/Disable" butonu gibi çalışmasını sağlar.
+
 
 // --- Sunucuyu Dinlemeye Başla ---
 app.listen(PORT, () => {

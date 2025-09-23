@@ -75,8 +75,8 @@ const FlowDesignerContent = () => {
         const newFlowId = response.data.id;
         setCurrentFlowId(newFlowId);
         setBuilderItems([
-            { id: 'new', name: 'New Flow' },
-            { id: newFlowId, name: flowName }
+          { id: 'new', name: 'New Flow' },
+          { id: newFlowId, name: flowName }
         ]);
         alert("Akış başarıyla kaydedildi!");
       }
@@ -112,50 +112,50 @@ const FlowDesignerContent = () => {
     <div style={{ display: 'flex', height: '100vh', width: '100%' }}>
       {/* --- KENAR ÇUBUĞU (SIDEBAR) CSS DÜZELTMESİYLE GÜNCELLENDİ --- */}
       <aside style={{
-          width: '250px',
-          borderRight: '1px solid #ccc',
-          height: '100vh', 
-          display: 'flex',
-          flexDirection: 'column'
+        width: '250px',
+        borderRight: '1px solid #ccc',
+        height: '100vh',
+        display: 'flex',
+        flexDirection: 'column'
       }}>
-          {/* Sabit Başlık Alanı */}
-          <div style={{ padding: '10px 10px 0 10px' }}>
-              <h3>Flow Designer</h3>
+        {/* Sabit Başlık Alanı */}
+        <div style={{ padding: '10px 10px 0 10px' }}>
+          <h3>Flow Designer</h3>
+        </div>
+
+        {/* Kaydırılabilir İçerik Alanı */}
+        <div style={{
+          flex: 1,
+          overflowY: 'auto',
+          padding: '0 10px 10px 10px'
+        }}>
+          {/* Builder Bölümü */}
+          <h3>Builderdsaaaaaaa</h3>
+          <ul style={{ listStyleType: 'none', paddingLeft: '0', margin: '0 0 10px 0' }}>
+            {builderItems.map(item => (
+              <li
+                key={item.id}
+                style={{ padding: '5px 0', cursor: 'pointer', fontWeight: item.id === currentFlowId ? 'bold' : 'normal' }}
+                onClick={() => item.id === 'new' && onNewFlow()}
+              >
+                <span style={{ marginRight: '8px' }}>{item.id === 'new' ? '➕' : '📝'}</span>
+                {item.name}
+              </li>
+            ))}
+          </ul>
+          <hr />
+
+          {/* Diğer menü elemanları */}
+          <h4>Node Kütüphanesi</h4>
+          <div style={{ border: '1px dashed #aaa', padding: '10px', marginBottom: '20px' }}>
+            BAPI, Query, Table...
           </div>
 
-          {/* Kaydırılabilir İçerik Alanı */}
-          <div style={{
-              flex: 1, 
-              overflowY: 'auto', 
-              padding: '0 10px 10px 10px'
-          }}>
-              {/* Builder Bölümü */}
-              <h3>Builder</h3>
-              <ul style={{ listStyleType: 'none', paddingLeft: '0', margin: '0 0 10px 0' }}>
-                {builderItems.map(item => (
-                   <li 
-                     key={item.id} 
-                     style={{ padding: '5px 0', cursor: 'pointer', fontWeight: item.id === currentFlowId ? 'bold' : 'normal' }} 
-                     onClick={() => item.id === 'new' && onNewFlow()}
-                   >
-                    <span style={{ marginRight: '8px' }}>{item.id === 'new' ? '➕' : '📝'}</span>
-                    {item.name}
-                  </li>
-                ))}
-              </ul>
-              <hr />
-              
-              {/* Diğer menü elemanları */}
-              <h4>Node Kütüphanesi</h4>
-              <div style={{border: '1px dashed #aaa', padding: '10px', marginBottom: '20px'}}>
-                  BAPI, Query, Table...
-              </div>
-              
-              <SavedFlowsList onLoadFlow={onLoadFlow} />
-          </div>
+          <SavedFlowsList onLoadFlow={onLoadFlow} />
+        </div>
       </aside>
       {/* --- KENAR ÇUBUĞU BÖLÜMÜ SONU --- */}
-      
+
       <main style={{ flex: 1, position: 'relative' }}>
         <ReactFlow
           nodes={nodes}

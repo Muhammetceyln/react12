@@ -1,71 +1,169 @@
 import React, { useState, useEffect } from 'react';
 import {
-    Dialog, DialogTitle, DialogContent, DialogActions, TextField, Checkbox, FormControlLabel,
-    Select, MenuItem, IconButton, Stack, InputLabel, FormControl, Box, Button
+    Box, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField,
+    Checkbox, FormControlLabel, Select, MenuItem, IconButton, Stack,
+    InputLabel, FormControl, Snackbar, Alert, CircularProgress, Typography
 } from '@mui/material';
-// YENİ: İkon importu eklendi
 import { EditCalendar as EditPatternIcon } from '@mui/icons-material';
+import CloseIcon from '@mui/icons-material/Close';
+import PatternSelectorPopup from "../popup/PatternSelectorPopup.jsx";
 
-// Bu bileşenin, projenizde PatternSelectorPopup.jsx olarak var olduğunu varsayıyoruz.
-// import PatternSelectorPopup from './PatternSelectorPopup.jsx';
-
-// JobPopup bileşeni, ana form
 const JobPopup = ({ open, onClose, onSave, job }) => {
+    // --- State'ler ---
     const [formData, setFormData] = useState({});
-    // YENİ: Pattern popup'ının görünürlüğünü kontrol eden state
     const [isPatternPopupOpen, setPatternPopupOpen] = useState(false);
 
+    // Template'ler için state'ler
+    const [templates, setTemplates] = useState([]);
+    const [loadingTemplates, setLoadingTemplates] = useState(false);
+
+    // Genel state'ler
+    const [loading, setLoading] = useState(false);
+    const [snackbar, setSnackbar] = useState({ open: false, severity: "info", message: "" });
+
+    // --- API Çağrıları ---
+    const getAuthToken = () => localStorage.getItem('authToken');
+
+    // ✅ Tamamen Düzeltilmiş fetchTemplates Fonksiyonu
+    const fetchTemplates = async () => {
+        setLoadingTemplates(true);
+        try {
+            const token = getAuthToken();
+            if (!token) {
+                setSnackbar({ open: true, severity: 'error', message: 'Yetkilendirme token\'ı bulunamadı.' });
+                return;
+            }
+
+            // GET isteği atılıyor, method veya body belirtmeye gerek yok.
+            const response = await fetch('http://localhost:3001/api/templates', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setTemplates(data || []);
+            } else {
+                // 401 hatası genellikle token süresinin dolmasından kaynaklanır.
+                if (response.status === 401) {
+                    setSnackbar({ open: true, severity: 'error', message: 'Oturum süreniz dolmuş. Lütfen yeniden giriş yapın.' });
+                } else {
+                    setSnackbar({ open: true, severity: 'error', message: 'Template listesi yüklenemedi.' });
+                }
+            }
+        } catch (err) {
+            console.error('Template fetch error:', err);
+            setSnackbar({ open: true, severity: 'error', message: 'Sunucuya bağlanırken bir hata oluştu.' });
+        } finally {
+            setLoadingTemplates(false);
+        }
+    };
+
+    // --- useEffect ---
     useEffect(() => {
         if (open) {
-            if (job) {
-                setFormData({ ...job });
-            } else {
-                setFormData({ name: '', description: '', enabled: true, object: 'Flow_1', pattern: '*/5 * * * *' });
+            fetchTemplates();
+
+            if (job) { // Düzenleme modu
+                setFormData({
+                    id: job.id,
+                    name: job.NAME || '',
+                    description: job.DESCRIPTION || '',
+                    enabled: job.ENABLED !== undefined ? job.ENABLED : true,
+                    templateId: job.TEMPLATE_ID || '',
+                    pattern: job.PATTERN || '0 */5 * * *',
+                });
+            } else { // Yeni oluşturma modu
+                setFormData({
+                    name: '',
+                    description: '',
+                    enabled: true,
+                    templateId: '',
+                    pattern: '0 */5 * * *'
+                });
             }
         }
     }, [job, open]);
 
+    // --- Handler Fonksiyonları ---
     const handleChange = (event) => {
         const { name, value, type, checked } = event.target;
         setFormData(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
     };
 
-    const handleSave = () => {
-        onSave(formData);
-        onClose();
+    const handleSave = async () => {
+        if (!formData.name || !formData.templateId || !formData.pattern) {
+            setSnackbar({ open: true, severity: 'warning', message: 'Name, Template, ve Pattern alanları zorunludur.' });
+            return;
+        }
+        setLoading(true);
+        try {
+            await onSave(formData);
+            onClose();
+        } catch (error) {
+            setSnackbar({ open: true, severity: 'error', message: `Kaydetme başarısız: ${error.message}` });
+        } finally {
+            setLoading(false);
+        }
     };
 
-    // YENİ: Pattern popup'ından seçilen yeni cron desenini state'e uygulayan fonksiyon
     const handleApplyPattern = (newPattern) => {
         setFormData(prev => ({ ...prev, pattern: newPattern }));
-        setPatternPopupOpen(false); // Pattern seçildikten sonra popup'ı kapat
+        setPatternPopupOpen(false);
+    };
+
+    const handleCloseSnackbar = (event, reason) => {
+        if (reason === 'clickaway') return;
+        setSnackbar(prev => ({ ...prev, open: false }));
     };
 
     return (
         <>
             <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-                <DialogTitle>{job ? 'Edit Job' : 'Create New Job'}</DialogTitle>
-                <DialogContent>
-                    <Stack spacing={2} sx={{ mt: 2 }}>
+                <DialogTitle sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <Typography variant="h6">{job ? 'Edit Job' : 'Create New Job'}</Typography>
+                    <IconButton onClick={onClose} size="small">
+                        <CloseIcon />
+                    </IconButton>
+                </DialogTitle>
+
+                <DialogContent dividers>
+                    <Stack spacing={2} sx={{ mt: 1 }}>
                         <TextField name="name" label="Name" value={formData.name || ''} onChange={handleChange} fullWidth />
                         <TextField name="description" label="Description" value={formData.description || ''} onChange={handleChange} fullWidth />
+
                         <FormControl fullWidth>
-                            <InputLabel>Object (Flow)</InputLabel>
-                            <Select name="object" value={formData.object || 'Flow_1'} label="Object (Flow)" onChange={handleChange}>
-                                <MenuItem value="Flow_1">KalyonMii/Flows/Flow_1</MenuItem>
-                                <MenuItem value="Flow_2">KalyonMii/Flows/Flow_2</MenuItem>
-                                <MenuItem value="Flow_3">KalyonMii/Flows/Process_Data</MenuItem>
+                            <InputLabel id="template-select-label">Template</InputLabel>
+                            <Select
+                                labelId="template-select-label"
+                                name="templateId"
+                                value={formData.templateId || ''}
+                                label="Template"
+                                onChange={handleChange}
+                                disabled={loadingTemplates}
+                            >
+                                {loadingTemplates ? (
+                                    <MenuItem disabled>
+                                        <CircularProgress size={16} sx={{ mr: 1 }} /> Yükleniyor...
+                                    </MenuItem>
+                                ) : (
+                                    [
+                                        <MenuItem key="empty" value=""><em>Seçiniz...</em></MenuItem>,
+                                        ...templates.map(template => (
+                                            <MenuItem key={template.ID} value={template.ID}>
+                                                {template.TEMPLATE_NAME}
+                                            </MenuItem>
+                                        ))
+                                    ]
+                                )}
                             </Select>
                         </FormControl>
 
-                        {/* GÜNCELLEME: TextField ve Buton bir Box içine alındı */}
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                             <TextField
                                 name="pattern"
                                 label="Pattern (Cron Expression)"
                                 value={formData.pattern || ''}
                                 fullWidth
-                                // GÜNCELLEME: Sadece okunur yapıldı ve helper text güncellendi
                                 InputProps={{ readOnly: true }}
                                 helperText="Click the icon to build a pattern visually"
                             />
@@ -73,24 +171,30 @@ const JobPopup = ({ open, onClose, onSave, job }) => {
                                 <EditPatternIcon />
                             </IconButton>
                         </Box>
-
-                        <FormControlLabel control={<Checkbox name="enabled" checked={Boolean(formData.enabled)} onChange={handleChange} />} label="Enabled" />
+                        <FormControlLabel control={<Checkbox name="enabled" checked={formData.enabled || false} onChange={handleChange} />} label="Enabled" />
                     </Stack>
                 </DialogContent>
-                <DialogActions>
-                    <Button onClick={onClose}>Cancel</Button>
-                    <Button onClick={handleSave} variant="contained">Save</Button>
+
+                <DialogActions sx={{ p: 2 }}>
+                    <Button onClick={onClose} disabled={loading}>Cancel</Button>
+                    <Button onClick={handleSave} variant="contained" disabled={loading}>
+                        {loading ? <CircularProgress size={24} color="inherit" /> : "Save"}
+                    </Button>
                 </DialogActions>
             </Dialog>
 
-            {/* YENİ: PatternSelectorPopup'ı burada çağırıyoruz */}
-            {/* Bu component'in projenizde var olduğunu ve onApply prop'unu aldığını varsayıyoruz. */}
-            {<PatternSelectorPopup
+            <PatternSelectorPopup
                 open={isPatternPopupOpen}
                 onClose={() => setPatternPopupOpen(false)}
                 onApply={handleApplyPattern}
                 initialPattern={formData.pattern || ''}
-            />}
+            />
+
+            <Snackbar open={snackbar.open} autoHideDuration={4000} onClose={handleCloseSnackbar}>
+                <Alert onClose={handleCloseSnackbar} severity={snackbar.severity} sx={{ width: '100%' }}>
+                    {snackbar.message}
+                </Alert>
+            </Snackbar>
         </>
     );
 };

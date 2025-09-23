@@ -1,0 +1,157 @@
+{
+    "nodes": [
+        {
+            "id": "dndnode_1756592638595",
+            "type": "tableDestination",
+            "position": {
+                "x": 67.35915477637673,
+                "y": 228.17721785367246
+            },
+            "data": {
+                "connectionId": 27,
+                "connectionName": "mosyazil_DB_FlexiLink",
+                "connectionType": "MSSQL",
+                "connectionDetails": {
+                    "host": "mssql02.trwww.com",
+                    "ip": "123",
+                    "port": "123",
+                    "database": "mosyazil_DB_FlexiLink",
+                    "username": "mosuser",
+                    "password": "admMOS!298"
+                },
+                "schema": "mosuser",
+                "table": "DENEME2",
+                "fullTableName": "mosuser.DENEME2",
+                "columnMappings": {
+                    "ID": "ID",
+                    "AD": "AD",
+                    "SOYAD": "SOYAD",
+                    "YAS": "YAS",
+                    "MAAS": "MAAS",
+                    "TARIH": "TARIH",
+                    "AKTIF": "AKTIF"
+                },
+                "sourceData": {
+                    "connectionId": 55,
+                    "connectionName": "MSSQL MAİN DB",
+                    "connectionType": "MSSQL",
+                    "connectionDetails": {
+                        "host": "mssql02.trwww.com",
+                        "ip": "dsa",
+                        "port": "ads",
+                        "database": "mosyazil_DB_FlexiLink",
+                        "username": "mosuser",
+                        "password": "admMOS!298"
+                    },
+                    "schema": "mosuser",
+                    "table": "DENEME1",
+                    "selectedColumns": [
+                        "ID",
+                        "AD",
+                        "SOYAD",
+                        "YAS",
+                        "MAAS",
+                        "TARIH",
+                        "AKTIF"
+                    ],
+                    "fullTableName": "mosuser.DENEME1",
+                    "isConfigured": true,
+                    "customName": "mosuser.DENEME1 (7 cols)",
+                    "previewData": null
+                },
+                "isConfigured": true,
+                "customName": "→ mosuser.DENEME2 (7 mapped)",
+                "transferConfig": {
+                    "sourceConnection": {
+                        "host": "mssql02.trwww.com",
+                        "ip": "dsa",
+                        "port": "ads",
+                        "database": "mosyazil_DB_FlexiLink",
+                        "username": "mosuser",
+                        "password": "admMOS!298"
+                    },
+                    "sourceTable": "mosuser.DENEME1",
+                    "sourceColumns": [
+                        "ID",
+                        "AD",
+                        "SOYAD",
+                        "YAS",
+                        "MAAS",
+                        "TARIH",
+                        "AKTIF"
+                    ],
+                    "destinationConnection": {
+                        "host": "mssql02.trwww.com",
+                        "ip": "123",
+                        "port": "123",
+                        "database": "mosyazil_DB_FlexiLink",
+                        "username": "mosuser",
+                        "password": "admMOS!298"
+                    },
+                    "destinationTable": "mosuser.DENEME2",
+                    "mappedColumns": 7,
+                    "transferQuery": "INSERT INTO [mosuser].[DENEME2] (ID, AD, SOYAD, YAS, MAAS, TARIH, AKTIF) SELECT ID, AD, SOYAD, YAS, MAAS, TARIH, AKTIF FROM [SOURCE_TABLE]"
+                },
+                "executionStatus": "completed"
+            },
+            "width": 200,
+            "height": 97,
+            "selected": true,
+            "positionAbsolute": {
+                "x": 67.35915477637673,
+                "y": 228.17721785367246
+            },
+            "dragging": false
+        },
+        {
+            "id": "dndnode_1757661940100",
+            "type": "tableSource",
+            "position": {
+                "x": -206.25,
+                "y": 186.25
+            },
+            "data": {
+                "connectionId": 55,
+                "connectionName": "MSSQL MAİN DB",
+                "connectionType": "MSSQL",
+                "connectionDetails": {
+                    "host": "mssql02.trwww.com",
+                    "ip": "dsa",
+                    "port": "ads",
+                    "database": "mosyazil_DB_FlexiLink",
+                    "username": "mosuser",
+                    "password": "admMOS!298"
+                },
+                "schema": "mosuser",
+                "table": "DENEME1",
+                "selectedColumns": [
+                    "ID",
+                    "AD",
+                    "SOYAD",
+                    "YAS",
+                    "MAAS",
+                    "TARIH",
+                    "AKTIF"
+                ],
+                "fullTableName": "mosuser.DENEME1",
+                "isConfigured": true,
+                "customName": "mosuser.DENEME1 (7 cols)",
+                "previewData": null,
+                "executionStatus": "completed"
+            },
+            "width": 200,
+            "height": 97,
+            "selected": false,
+            "dragging": false
+        }
+    ],
+    "edges": [
+        {
+            "source": "dndnode_1757661940100",
+            "sourceHandle": null,
+            "target": "dndnode_1756592638595",
+            "targetHandle": null,
+            "id": "reactflow__edge-dndnode_1757661940100-dndnode_1756592638595"
+        }
+    ]
+}
