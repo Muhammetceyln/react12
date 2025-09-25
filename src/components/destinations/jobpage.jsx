@@ -87,7 +87,7 @@ const JobPage = () => {
             const data = await apiCall('/api/jobs');
             // Template adını job listesine eklemek için template'leri kullan
             const jobsWithTemplateNames = data.map(job => {
-                const template = templates.find(t => t.ID === job.TEMPLATE_ID);
+                const template = templates.find(t => t.ID === job.templateId);
                 return {
                     ...job,
                     id: job.ID, // Kolay erişim için
@@ -126,20 +126,23 @@ const JobPage = () => {
     }, [fetchTemplates]);
 
     useEffect(() => {
-        fetchJobs();
-    }, [fetchJobs]);
+        // Sadece template'ler yüklendikten sonra job'ları çek
+        if (templates.length > 0) {
+            fetchJobs();
+        }
+    }, [templates, fetchJobs]); // Artık fetchJobs yerine templates'e bağlı
 
 
 
 
     // Job kaydetme (oluşturma/güncelleme)
     const handleSaveJob = async (jobData) => {
-        const { id, name, description, pattern, enabled, templateId } = jobData;
+        const { id, name, description, pattern, status, templateId } = jobData;
         const isEditing = !!id;
 
         const method = isEditing ? 'PUT' : 'POST';
         const url = isEditing ? `/api/jobs/${id}` : '/api/jobs';
-        const body = JSON.stringify({ name, description, pattern, enabled, templateId });
+        const body = JSON.stringify({ name, description, pattern, status, templateId });
 
         try {
             await apiCall(url, { method, body });
@@ -165,9 +168,11 @@ const JobPage = () => {
 
     const selectedJob = jobs.find(j => j.id === selectedJobId);
 
-    const handleRunStopToggle = (e) => {
+    const handleRunStopToggle = () => { // 'e' parametresi kullanılmadığı için kaldırılabilir
         if (!selectedJob) return;
-        if (selectedJob.status === 'Running') {
+
+        // Kontrol 'Running' metni yerine 'true' boolean değeri ile yapılıyor
+        if (selectedJob.status === true) {
             stopJob(selectedJob);
         } else {
             startJob(selectedJob);
@@ -186,8 +191,16 @@ const JobPage = () => {
             <Paper elevation={2} sx={{ mb: 2, p: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
                 <Button variant="outlined" startIcon={<CreateIcon />} onClick={() => { setEditingJob(null); setPopupOpen(true); }}>Create</Button>
                 <Box sx={{ flexGrow: 1 }} />
-                <Button variant="contained" startIcon={selectedJob?.STATUS === 'Running' ? <StopIcon /> : <RunIcon />} color={selectedJob?.STATUS === 'Running' ? 'error' : 'success'} onClick={handleRunStopToggle} disabled={!selectedJob}>
-                    {selectedJob?.status === 'Running' ? 'Stop' : 'Run'}
+                <Button
+                    variant="contained"
+                    // Koşul 'true' olarak güncellendi ve 'status' küçük harf yapıldı
+                    startIcon={selectedJob?.status === true ? <StopIcon /> : <RunIcon />}
+                    color={selectedJob?.status === true ? 'error' : 'success'}
+                    onClick={handleRunStopToggle}
+                    disabled={!selectedJob}
+                >
+                    {/* Burası da güncellendi */}
+                    {selectedJob?.status === true ? 'Stop' : 'Run'}
                 </Button>
             </Paper>
             <TableContainer component={Paper} sx={{ flexGrow: 1 }}>
@@ -231,7 +244,7 @@ const JobPage = () => {
                     </TableBody>
                 </Table>
             </TableContainer>
-            <JobPopup open={isPopupOpen} onClose={() => setPopupOpen(false)} onSave={handleSaveJob} job={editingJob} templates={templates} />
+            <JobPopup open={isPopupOpen} onClose={() => setPopupOpen(false)} onSave={handleSaveJob} job={editingJob} />
         </Box>
     );
 };

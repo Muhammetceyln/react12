@@ -24,7 +24,7 @@ const JobPopup = ({ open, onClose, onSave, job }) => {
     // --- API Çağrıları ---
     const getAuthToken = () => localStorage.getItem('authToken');
 
-    // ✅ Tamamen Düzeltilmiş fetchTemplates Fonksiyonu
+    // TEMPLATELERİ GETİRMEK İÇİN KULLANILAN FONKSİYON
     const fetchTemplates = async () => {
         setLoadingTemplates(true);
         try {
@@ -58,7 +58,7 @@ const JobPopup = ({ open, onClose, onSave, job }) => {
         }
     };
 
-    // --- useEffect ---
+    // --- useEffect --- 
     useEffect(() => {
         if (open) {
             fetchTemplates();
@@ -67,16 +67,16 @@ const JobPopup = ({ open, onClose, onSave, job }) => {
                 setFormData({
                     id: job.id,
                     name: job.NAME || '',
-                    description: job.DESCRIPTION || '',
-                    enabled: job.ENABLED !== undefined ? job.ENABLED : true,
-                    templateId: job.TEMPLATE_ID || '',
+                    description: job.description || '',
+
+                    templateId: job.templateId || '', // Use lowercase 'templateId'
                     pattern: job.PATTERN || '0 */5 * * *',
                 });
             } else { // Yeni oluşturma modu
                 setFormData({
                     name: '',
                     description: '',
-                    enabled: true,
+                    status: false,
                     templateId: '',
                     pattern: '0 */5 * * *'
                 });
@@ -171,7 +171,7 @@ const JobPopup = ({ open, onClose, onSave, job }) => {
                                 <EditPatternIcon />
                             </IconButton>
                         </Box>
-                        <FormControlLabel control={<Checkbox name="enabled" checked={formData.enabled || false} onChange={handleChange} />} label="Enabled" />
+                        <FormControlLabel control={<Checkbox name="status" checked={formData.status || false} onChange={handleChange} />} label="Status" />
                     </Stack>
                 </DialogContent>
 

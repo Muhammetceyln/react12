@@ -82,9 +82,21 @@ class JobManager {
 
   getJobStatus(jobId) {
     const job = this.jobs.get(jobId);
-    return job ? (job.task.getStatus() || 'stopped') : null;
+    return job ? (job.task.getStatus() || 0) : null;
   }
 
+  getJobNextRun(jobId) {
+    const job = this.jobs.get(jobId);
+    if (job && job.task) {
+      // nextDates() returns an array of Luxon DateTime objects in node-cron v3
+      // We'll take the first one.
+      const nextDates = job.task.nextDates(1);
+      if (nextDates && nextDates.length > 0) {
+        return nextDates[0].toJSDate(); // Convert to standard JS Date
+      }
+    }
+    return null;
+  }
   getAllJobs() {
     return Array.from(this.jobs.entries()).map(([id, job]) => ({
       id,
@@ -1570,7 +1582,7 @@ app.get('/api/jobs', requireAuth, async (req, res) => {
                     NAME, 
                     DESCRIPTION AS description,
                     PATTERN AS pattern,
-                    ENABLED AS enabled,
+                
                     TEMPLATE_ID AS templateId,
                     STATUS AS status -- Frontend'in beklemesi muhtemel olan 'status' alias'ı eklendi
                 FROM [mosuser].[JOBS] 
@@ -1587,9 +1599,9 @@ app.get('/api/jobs', requireAuth, async (req, res) => {
 // [POST] /api/jobs - Yeni job oluştur
 app.post('/api/jobs', requireAuth, async (req, res) => {
   const userId = req.user.id;
-  // GÜNCELLEME: Frontend'den gelen property isimleri (pattern, enabled, templateId)
-  //             veritabanı sütun isimleriyle (PATTERN, ENABLED, TEMPLATE_ID) eşleştiriliyor.
-  const { name, description, pattern, enabled, templateId } = req.body;
+  // GÜNCELLEME: Frontend'den gelen property isimleri (pattern, status, templateId)
+  //             veritabanı sütun isimleriyle (PATTERN, STATUS, TEMPLATE_ID) eşleştiriliyor.
+  const { name, description, pattern, templateId, status } = req.body;
 
   if (!name || !pattern || !templateId) {
     return res.status(400).json({ message: 'Name, pattern ve templateId alanları gereklidir.' });
@@ -1602,24 +1614,16 @@ app.post('/api/jobs', requireAuth, async (req, res) => {
       .input('NAME', sql.NVarChar, name)
       .input('DESCRIPTION', sql.NVarChar, description || null) // Boş string yerine null daha iyi olabilir.
       .input('PATTERN', sql.NVarChar, pattern)
-      .input('ENABLED', sql.Bit, enabled)
+      .input('STATUS', sql.Bit, status) // Yeni job'lar her zaman 'Pending' olarak başlar
       .input('TEMPLATE_ID', sql.Int, templateId)
       // KALDIRILDI: STATUS ve CREATED_AT ile ilgili input'lar ve sütunlar kaldırıldı.
       .query(`
-                INSERT INTO [mosuser].[JOBS] (USER_ID, NAME, DESCRIPTION, PATTERN, ENABLED, TEMPLATE_ID)
+                INSERT INTO [mosuser].[JOBS] (USER_ID, NAME, DESCRIPTION, PATTERN, STATUS, TEMPLATE_ID)
                 OUTPUT INSERTED.ID
-                VALUES (@USER_ID, @NAME, @DESCRIPTION, @PATTERN, @ENABLED, @TEMPLATE_ID)
+                VALUES (@USER_ID, @NAME, @DESCRIPTION, @PATTERN, @STATUS, @TEMPLATE_ID)
             `);
 
     const jobId = result.recordset[0].ID;
-
-    if (enabled) {
-      // Bu kısım jobManager'ınızın çalışmasına bağlı, mantık aynı kalabilir.
-      const success = jobManager.createJob(jobId, pattern, () => executeTemplateForJob(jobId, templateId, userId));
-      if (success) {
-        jobManager.startJob(jobId);
-      }
-    }
 
     res.status(201).json({ message: 'Job başarıyla oluşturuldu.', jobId: jobId });
   } catch (err) {
@@ -1632,7 +1636,7 @@ app.post('/api/jobs', requireAuth, async (req, res) => {
 app.put('/api/jobs/:id', requireAuth, async (req, res) => {
   const userId = req.user.id;
   const jobId = parseInt(req.params.id);
-  const { name, description, pattern, enabled, templateId } = req.body;
+  const { name, description, pattern, templateId } = req.body;
 
   try {
     const pool = await poolPromise;
@@ -1652,27 +1656,12 @@ app.put('/api/jobs/:id', requireAuth, async (req, res) => {
       .input('NAME', sql.NVarChar, name)
       .input('DESCRIPTION', sql.NVarChar, description || null)
       .input('PATTERN', sql.NVarChar, pattern)
-      .input('ENABLED', sql.Bit, enabled)
       .input('TEMPLATE_ID', sql.Int, templateId || null)
       .query(`
                 UPDATE [mosuser].[JOBS] 
-                SET NAME = @NAME, 
-                    DESCRIPTION = @DESCRIPTION, 
-                    PATTERN = @PATTERN, 
-                    ENABLED = @ENABLED, 
-                    TEMPLATE_ID = @TEMPLATE_ID
+                SET NAME = @NAME, DESCRIPTION = @DESCRIPTION, PATTERN = @PATTERN, TEMPLATE_ID = @TEMPLATE_ID
                 WHERE ID = @JOB_ID
             `);
-
-    // Cron manager'daki görevi yeniden kur
-    jobManager.destroyJob(jobId);
-
-    if (enabled) {
-      const success = jobManager.createJob(jobId, pattern, () => executeTemplateForJob(jobId, templateId, userId));
-      if (success) {
-        jobManager.startJob(jobId);
-      }
-    }
 
     res.status(200).json({ message: 'Job başarıyla güncellendi.' });
   } catch (err) {
@@ -1705,51 +1694,87 @@ app.delete('/api/jobs/:id', requireAuth, async (req, res) => {
   }
 });
 
-// [POST] /api/jobs/:id/toggle - Job'u etkinleştir/devre dışı bırak
-app.post('/api/jobs/:id/toggle', requireAuth, async (req, res) => {
+// Fonksiyon, bir job tetiklendiğinde çalıştırılacak olan asıl iş mantığını içerir.
+// Bu fonksiyonun kapsamı dışında olduğu için içeriği boş bırakılmıştır.
+// Gerçek bir uygulamada, bu fonksiyon ilgili template'i bulup çalıştıracaktır.
+const executeTemplateForJob = async (jobId, templateId, userId) => {
+  console.log(`--- ⚙️ Job ${jobId} (Template: ${templateId}, User: ${userId}) çalıştırılıyor... ---`);
+  // Burada, templateId'ye göre ilgili akışı (veritabanından JSON'u çekip)
+  // çalıştırma mantığı yer almalıdır.
+  // Örnek: await executeFlow(templateId, userId);
+};
+
+// [POST] /api/jobs/:id/start - Job'u başlat
+app.post('/api/jobs/:id/start', requireAuth, async (req, res) => {
   const userId = req.user.id;
   const jobId = parseInt(req.params.id);
 
   try {
     const pool = await poolPromise;
-    // GÜNCELLEME: Sadece gerekli sütunlar seçiliyor.
     const jobResult = await pool.request()
       .input('USER_ID', sql.Int, userId)
       .input('JOB_ID', sql.Int, jobId)
-      .query('SELECT ID, NAME, PATTERN, TEMPLATE_ID, ENABLED FROM [mosuser].[JOBS] WHERE ID = @JOB_ID AND USER_ID = @USER_ID');
+      .query('SELECT ID, PATTERN, TEMPLATE_ID FROM [mosuser].[JOBS] WHERE ID = @JOB_ID AND USER_ID = @USER_ID');
 
     if (jobResult.recordset.length === 0) {
-      return res.status(404).json({ message: 'Job bulunamadı.' });
+      return res.status(404).json({ message: 'Job bulunamadı veya yetkiniz yok.' });
     }
 
     const job = jobResult.recordset[0];
-    const newEnabledStatus = !job.ENABLED;
 
-    // GÜNCELLEME: Sadece ENABLED sütunu güncelleniyor.
-    await pool.request()
-      .input('JOB_ID', sql.Int, jobId)
-      .input('ENABLED', sql.Bit, newEnabledStatus)
-      .query('UPDATE [mosuser].[JOBS] SET ENABLED = @ENABLED WHERE ID = @JOB_ID');
-
-    if (newEnabledStatus) {
-      // Job'u etkinleştir
-      jobManager.createJob(job.ID, job.PATTERN, () => executeTemplateForJob(job.ID, job.TEMPLATE_ID, userId));
-      jobManager.startJob(jobId);
+    // Job'u cron manager'da oluştur ve başlat
+    const success = jobManager.createJob(job.ID, job.PATTERN, () => executeTemplateForJob(job.ID, job.TEMPLATE_ID, userId));
+    if (success) {
+      jobManager.startJob(job.ID);
     } else {
-      // Job'u devre dışı bırak
-      jobManager.destroyJob(jobId);
+      return res.status(500).json({ message: 'Job zamanlaması oluşturulamadı.' });
     }
 
-    res.status(200).json({ message: `Job durumu başarıyla güncellendi.` });
+    // Veritabanında durumu 'Running' yap
+    await pool.request()
+      .input('JOB_ID', sql.Int, jobId)
+      .query('UPDATE [mosuser].[JOBS] SET STATUS = 1 WHERE ID = @JOB_ID');
+
+    res.status(200).json({ message: 'Job başarıyla başlatıldı.' });
+
   } catch (err) {
-    console.error('Job toggle hatası:', err);
-    res.status(500).json({ message: 'Job durumu değiştirilemedi.' });
+    console.error(`Job ${jobId} başlatma hatası:`, err);
+    res.status(500).json({ message: 'Job başlatılamadı.' });
   }
 });
 
-// ... Diğer endpoint'ler (start, stop, status) de benzer şekilde güncellenebilir ...
-// Not: Start ve Stop fonksiyonları artık toggle içinde yönetildiği için ayrı endpointlere gerek kalmayabilir.
-// Bu, frontend'deki Run/Stop butonunun artık "Enable/Disable" butonu gibi çalışmasını sağlar.
+// [POST] /api/jobs/:id/stop - Job'u durdur
+app.post('/api/jobs/:id/stop', requireAuth, async (req, res) => {
+  const userId = req.user.id;
+  const jobId = parseInt(req.params.id);
+
+  try {
+    const pool = await poolPromise;
+    // Yetki kontrolü
+    const ownership = await pool.request()
+      .input('USER_ID', sql.Int, userId)
+      .input('JOB_ID', sql.Int, jobId)
+      .query('SELECT ID FROM [mosuser].[JOBS] WHERE ID = @JOB_ID AND USER_ID = @USER_ID');
+
+    if (ownership.recordset.length === 0) {
+      return res.status(404).json({ message: 'Job bulunamadı veya yetkiniz yok.' });
+    }
+
+    // Job'u cron manager'da durdur ve sil
+    jobManager.destroyJob(jobId);
+
+    // Veritabanında durumu 'Stopped' yap
+    await pool.request()
+      .input('JOB_ID', sql.Int, jobId)
+      .query('UPDATE [mosuser].[JOBS] SET STATUS = 0 WHERE ID = @JOB_ID');
+
+    res.status(200).json({ message: 'Job başarıyla durduruldu.' });
+
+  } catch (err) {
+    console.error(`Job ${jobId} durdurma hatası:`, err);
+    res.status(500).json({ message: 'Job durdurulamadı.' });
+  }
+});
 
 
 // --- Sunucuyu Dinlemeye Başla ---
