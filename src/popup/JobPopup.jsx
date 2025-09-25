@@ -70,7 +70,7 @@ const JobPopup = ({ open, onClose, onSave, job }) => {
                     description: job.description || '',
 
                     templateId: job.templateId || '', // Use lowercase 'templateId'
-                    pattern: job.PATTERN || '0 */5 * * *',
+                    pattern: job.pattern || '0 */5 * * *',
                 });
             } else { // Yeni oluşturma modu
                 setFormData({
@@ -171,7 +171,9 @@ const JobPopup = ({ open, onClose, onSave, job }) => {
                                 <EditPatternIcon />
                             </IconButton>
                         </Box>
+                        {/* eğer workbenchdeki gibi enabled deyince çalışan button istenirse direkt burda hazır.
                         <FormControlLabel control={<Checkbox name="status" checked={formData.status || false} onChange={handleChange} />} label="Status" />
+                        */}
                     </Stack>
                 </DialogContent>
 

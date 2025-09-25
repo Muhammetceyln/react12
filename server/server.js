@@ -9,6 +9,7 @@ import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
 import process from 'process';
 import cron from 'node-cron';
+import parser from 'cron-parser'; // cron-parser kütüphanesini import et
 
 dotenv.config(); // .env server klasöründe ise bu yeterli
 
@@ -1589,7 +1590,24 @@ app.get('/api/jobs', requireAuth, async (req, res) => {
                 WHERE USER_ID = @USER_ID 
                 ORDER BY ID DESC -- CREATED_AT kaldırıldığı için ID'ye göre sıralama yapıldı.
             `);
-    res.status(200).json(result.recordset);
+
+    // Her bir job için NEXT_RUN_AT hesapla
+    const jobsWithNextRun = result.recordset.map(job => {
+      console.log('Veritabanından gelen orijinal job objesi:', job);
+      let nextRun = null;
+      if (job.pattern) {
+        try {
+          const interval = parser.parseExpression(job.pattern);
+          nextRun = interval.next().toDate();
+        } catch (err) {
+          console.error(`Job ID ${job.ID} için geçersiz pattern: ${job.pattern}`);
+        }
+      }
+      // job objesine NEXT_RUN_AT alanını ekle
+      return { ...job, NEXT_RUN_AT: nextRun };
+    });
+
+    res.status(200).json(jobsWithNextRun);
   } catch (err) {
     console.error('Jobs listesi getirme hatası:', err);
     res.status(500).json({ message: 'Job listesi getirilemedi.' });

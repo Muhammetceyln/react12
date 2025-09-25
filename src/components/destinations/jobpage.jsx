@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
     Box, Button, Paper, TableContainer, Table, TableHead, TableBody, TableRow, TableCell,
-    IconButton, Typography, Chip, Stack, Tooltip
+    IconButton, Typography, Chip, Stack, Tooltip, Checkbox, Dialog, DialogTitle, DialogContent, DialogActions, CircularProgress
 } from '@mui/material';
 import {
     PlayCircleOutline as RunIcon,
@@ -43,6 +43,11 @@ const JobPage = () => {
     const [isPopupOpen, setPopupOpen] = useState(false);
     const [editingJob, setEditingJob] = useState(null);
     const [loading, setLoading] = useState(false);
+    // Silme onayı için state'ler
+    const [confirmOpen, setConfirmOpen] = useState(false);
+    const [deletingJobIds, setDeletingJobIds] = useState([]);
+    const [deletingLoading, setDeletingLoading] = useState(false);
+
     const [templates, setTemplates] = useState([]);
 
     // API işlemleri için helper fonksiyonlar
@@ -153,18 +158,46 @@ const JobPage = () => {
         }
     };
 
-    // Job silme
-    const handleDeleteJob = async (jobId) => {
+    // Silme butonuna basıldığında onay penceresini açar
+    const handleDeleteJob = (jobId) => {
+        const idsToDelete = Array.isArray(jobId) ? jobId : [jobId];
+        if (idsToDelete.length > 0) {
+            setDeletingJobIds(idsToDelete);
+            setConfirmOpen(true);
+        }
+    };
+
+    // Onay penceresinde "Evet" denildiğinde gerçek silme işlemini yapar
+    const confirmDeleteJob = async () => {
+        if (deletingJobIds.length === 0) {
+            setConfirmOpen(false);
+            return;
+        }
+        setDeletingLoading(true);
         try {
-            await apiCall(`/api/jobs/${jobId}`, { method: 'DELETE' });
-            // Silinen job seçili ise seçimi kaldır
-            if (selectedJobId === jobId) setSelectedJobId(null);
+            // Birden fazla job'ı silmek için Promise.all kullanabiliriz
+            await Promise.all(deletingJobIds.map(id => apiCall(`/api/jobs/${id}`, { method: 'DELETE' })));
+            setSelectedJobId(prev => Array.isArray(prev) ? prev.filter(id => !deletingJobIds.includes(id)) : null);
             await fetchJobs(); // İşlem sonrası listeyi yenile
         } catch (error) {
             console.error('Job delete error:', error);
-            // Burada kullanıcıya bir bildirim (snackbar) göstermek faydalı olabilir.
+        } finally {
+            setDeletingLoading(false);
+            setConfirmOpen(false);
+            setDeletingJobIds([]);
         }
     };
+
+    // Silme işlemini iptal et
+    const cancelDeleteJob = () => {
+        setConfirmOpen(false);
+        setDeletingJobIds([]);
+    };
+
+    // Çoklu seçim state'i ve handler'ları (önceki adımdan)
+    const [selectedJobIds, setSelectedJobIds] = useState([]);
+    // Not: handleSelectAllClick ve handleSelectClick fonksiyonları
+    // önceki adımdaki gibi burada olmalıdır. Bu diff sadece silme mantığını düzeltir.
 
     const selectedJob = jobs.find(j => j.id === selectedJobId);
 
@@ -187,13 +220,16 @@ const JobPage = () => {
     };
 
     return (
-        <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', height: 'calc(100vh - 48px)' }}>
-            <Paper elevation={2} sx={{ mb: 2, p: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', maxHeight: 'calc(100vh - 180px)' }}>
+            <Typography variant="h5" sx={{ mb: 2 }}>
+                Sheduled jobs
+            </Typography>
+            <Paper elevation={2} sx={{ mb: 2, p: 1.5, display: 'flex', alignItems: 'center', gap: 1, }}>
                 <Button variant="outlined" startIcon={<CreateIcon />} onClick={() => { setEditingJob(null); setPopupOpen(true); }}>Create</Button>
                 <Box sx={{ flexGrow: 1 }} />
                 <Button
                     variant="contained"
-                    // Koşul 'true' olarak güncellendi ve 'status' küçük harf yapıldı
+                    // BUTON stop run dönüştürme
                     startIcon={selectedJob?.status === true ? <StopIcon /> : <RunIcon />}
                     color={selectedJob?.status === true ? 'error' : 'success'}
                     onClick={handleRunStopToggle}
@@ -216,9 +252,13 @@ const JobPage = () => {
                                 <TableCell>{job.id}</TableCell>
                                 <TableCell>{job.NAME}</TableCell>
                                 <TableCell>
-                                    {job.NEXT_RUN_AT ?
+                                    {/* 1. İşin durumu 'true' mu (çalışıyor mu)?
+                                    2. Backend'den gelen 'NEXT_RUN_AT' alanı dolu mu?
+                                    Bu iki koşul sağlanıyorsa tarihi formatla, aksi halde 'N/A' yaz.
+                                    */}
+                                    {(job.status === true && job.NEXT_RUN_AT) ?
                                         format(new Date(job.NEXT_RUN_AT), 'PPpp') :
-                                        (job.PATTERN ? 'Scheduled' : 'N/A')
+                                        'N/A'
                                     }
                                 </TableCell>
                                 <TableCell>{job.templateName}</TableCell>
@@ -234,7 +274,7 @@ const JobPage = () => {
                                         </Tooltip>
                                         <Tooltip title="Delete">
                                             <IconButton size="small" color="error" sx={actionButtonSx} onClick={(e) => { e.stopPropagation(); handleDeleteJob(job.id); }}>
-                                                <DeleteIcon fontSize="small" />
+                                                {deletingLoading && deletingJobIds.includes(job.id) ? <CircularProgress size={18} /> : <DeleteIcon fontSize="small" />}
                                             </IconButton>
                                         </Tooltip>
                                     </Stack>
@@ -245,6 +285,22 @@ const JobPage = () => {
                 </Table>
             </TableContainer>
             <JobPopup open={isPopupOpen} onClose={() => setPopupOpen(false)} onSave={handleSaveJob} job={editingJob} />
+
+            {/* Silme Onay Penceresi */}
+            <Dialog open={confirmOpen} onClose={cancelDeleteJob}>
+                <DialogTitle>Delete</DialogTitle>
+                <DialogContent>
+                    <Typography>
+                        Are you sure you want to delete the selected job?
+                    </Typography>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={cancelDeleteJob} disabled={deletingLoading}>Cancel</Button>
+                    <Button onClick={confirmDeleteJob} variant="contained" color="error" disabled={deletingLoading}>
+                        {deletingLoading ? <CircularProgress size={24} color="inherit" /> : "Delete"}
+                    </Button>
+                </DialogActions>
+            </Dialog>
         </Box>
     );
 };
