@@ -9,7 +9,7 @@ import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
 import process from 'process';
 import cron from 'node-cron';
-import cronParser from 'cron-parser';
+
 
 dotenv.config(); // .env server klasöründe ise bu yeterli
 
@@ -86,12 +86,13 @@ class JobManager {
     return job ? (job.task.getStatus() || 0) : null;
   }
 
-  getJobNextRun(jobId) {
+  async getJobNextRun(jobId) {
     const job = this.jobs.get(jobId);
     if (job && job.pattern) {
       try {
         // node-cron v4'te nextDates fonksiyonu yok, cron-parser kullanıyoruz
-        const interval = cronParser.parseExpression(job.pattern);
+        const cronParser = await import('cron-parser');
+        const interval = cronParser.default.parseExpression(job.pattern);
         return interval.next().toDate();
       } catch (error) {
         console.error('Cron pattern parsing error:', error);
@@ -1581,10 +1582,10 @@ app.get('/api/jobs', requireAuth, async (req, res) => {
                 ORDER BY ID DESC
             `);
 
-    const jobsWithNextRun = result.recordset.map(job => ({
+    const jobsWithNextRun = await Promise.all(result.recordset.map(async job => ({
       ...job,
-      nextRun: jobManager.getJobNextRun(job.ID)
-    }));
+      nextRun: await jobManager.getJobNextRun(job.ID)
+    })));
 
     res.status(200).json(jobsWithNextRun);
   } catch (err) {
