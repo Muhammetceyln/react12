@@ -256,8 +256,8 @@ const JobPage = () => {
                                     2. Backend'den gelen 'NEXT_RUN_AT' alanı dolu mu?
                                     Bu iki koşul sağlanıyorsa tarihi formatla, aksi halde 'N/A' yaz.
                                     */}
-                                    {(job.status === true && job.NEXT_RUN_AT) ?
-                                        format(new Date(job.NEXT_RUN_AT), 'PPpp') :
+                                    {(job.status === true && job.nextRun) ?
+                                        format(new Date(job.nextRun), 'PPpp') :
                                         'N/A'
                                     }
                                 </TableCell>

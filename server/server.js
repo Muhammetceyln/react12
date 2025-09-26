@@ -9,7 +9,7 @@ import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
 import process from 'process';
 import cron from 'node-cron';
-import parser from 'cron-parser'; // cron-parser kütüphanesini import et
+import cronParser from 'cron-parser';
 
 dotenv.config(); // .env server klasöründe ise bu yeterli
 
@@ -88,12 +88,14 @@ class JobManager {
 
   getJobNextRun(jobId) {
     const job = this.jobs.get(jobId);
-    if (job && job.task) {
-      // nextDates() returns an array of Luxon DateTime objects in node-cron v3
-      // We'll take the first one.
-      const nextDates = job.task.nextDates(1);
-      if (nextDates && nextDates.length > 0) {
-        return nextDates[0].toJSDate(); // Convert to standard JS Date
+    if (job && job.pattern) {
+      try {
+        // node-cron v4'te nextDates fonksiyonu yok, cron-parser kullanıyoruz
+        const interval = cronParser.parseExpression(job.pattern);
+        return interval.next().toDate();
+      } catch (error) {
+        console.error('Cron pattern parsing error:', error);
+        return null;
       }
     }
     return null;
@@ -1363,7 +1365,11 @@ app.post('/api/templates/:id/execute', requireAuth, async (req, res) => {
 
     const { sourceConnection: sourceDetails, sourceTable, destinationConnection: destDetails, destinationTable: destTable } = destNode.data.transferConfig;
     const columnMappings = destNode.data.columnMappings;
-    const sourceColumns = Object.keys(columnMappings);
+    // ID kolonunu identity hatası için otomatik çıkar
+    const filteredMappings = Object.fromEntries(
+      Object.entries(columnMappings).filter(([key]) => key.toUpperCase() !== 'ID')
+    );
+    const sourceColumns = Object.keys(filteredMappings);
 
     // --- 1. Connect to SOURCE and fetch data ---
     const sourceConfig = {
@@ -1428,25 +1434,11 @@ app.post('/api/templates/:id/execute', requireAuth, async (req, res) => {
     table.create = false;
 
     // Debug: Column mapping ve type bilgilerini logla
-    console.log('DEBUG - Column Mappings:', columnMappings);
+    console.log('DEBUG - Filtered Column Mappings:', filteredMappings);
     console.log('DEBUG - Dest Type Map:', destTypeMap);
 
-    // IDENTITY kolonları hariç tut - BCP otomatik handle eder
-    const identityQuery = `
-      SELECT COLUMN_NAME, IS_IDENTITY = COLUMNPROPERTY(OBJECT_ID(@schema + '.' + @table), COLUMN_NAME, 'IsIdentity')
-      FROM INFORMATION_SCHEMA.COLUMNS
-      WHERE TABLE_SCHEMA = @schema AND TABLE_NAME = @table AND COLUMNPROPERTY(OBJECT_ID(@schema + '.' + @table), COLUMN_NAME, 'IsIdentity') = 1
-    `;
-    const identityResult = await pool.request()
-      .input('schema', sql.NVarChar, destSchema)
-      .input('table', sql.NVarChar, destTableName)
-      .query(identityQuery);
-
-    const identityColumns = identityResult.recordset.map(row => row.COLUMN_NAME);
-    console.log('DEBUG - Identity Columns:', identityColumns);
-
-    const destColumns = Object.values(columnMappings).filter(colName => !identityColumns.includes(colName));
-    console.log('DEBUG - Filtered Dest Columns (no identity):', destColumns);
+    const destColumns = Object.values(filteredMappings);
+    console.log('DEBUG - Dest Columns (ID filtered):', destColumns);
 
     destColumns.forEach(colName => {
       const dbType = destTypeMap[colName];
@@ -1459,7 +1451,7 @@ app.post('/api/templates/:id/execute', requireAuth, async (req, res) => {
     sourceDataResult.recordset.forEach((sourceRow, rowIndex) => {
       const newRow = [];
       destColumns.forEach((destColName, index) => {
-        const sourceCol = Object.keys(columnMappings).find(key => columnMappings[key] === destColName);
+        const sourceCol = Object.keys(filteredMappings).find(key => filteredMappings[key] === destColName);
         const value = sourceRow[sourceCol];
         const destType = destTypeMap[destColName].toLowerCase();
 
@@ -1577,35 +1569,22 @@ app.get('/api/jobs', requireAuth, async (req, res) => {
     const result = await pool.request()
       .input('USER_ID', sql.Int, userId)
       .query(`
-                -- GÜNCELLEME: Sadece istenen 7 sütun seçiliyor. Frontend için alias (AS) kullanıldı.
                 SELECT 
                     ID, 
                     NAME, 
                     DESCRIPTION AS description,
                     PATTERN AS pattern,
-                
                     TEMPLATE_ID AS templateId,
-                    STATUS AS status -- Frontend'in beklemesi muhtemel olan 'status' alias'ı eklendi
+                    STATUS AS status
                 FROM [mosuser].[JOBS] 
                 WHERE USER_ID = @USER_ID 
-                ORDER BY ID DESC -- CREATED_AT kaldırıldığı için ID'ye göre sıralama yapıldı.
+                ORDER BY ID DESC
             `);
 
-    // Her bir job için NEXT_RUN_AT hesapla
-    const jobsWithNextRun = result.recordset.map(job => {
-      console.log('Veritabanından gelen orijinal job objesi:', job);
-      let nextRun = null;
-      if (job.pattern) {
-        try {
-          const interval = parser.parseExpression(job.pattern);
-          nextRun = interval.next().toDate();
-        } catch (err) {
-          console.error(`Job ID ${job.ID} için geçersiz pattern: ${job.pattern}`);
-        }
-      }
-      // job objesine NEXT_RUN_AT alanını ekle
-      return { ...job, NEXT_RUN_AT: nextRun };
-    });
+    const jobsWithNextRun = result.recordset.map(job => ({
+      ...job,
+      nextRun: jobManager.getJobNextRun(job.ID)
+    }));
 
     res.status(200).json(jobsWithNextRun);
   } catch (err) {
@@ -1717,9 +1696,142 @@ app.delete('/api/jobs/:id', requireAuth, async (req, res) => {
 // Gerçek bir uygulamada, bu fonksiyon ilgili template'i bulup çalıştıracaktır.
 const executeTemplateForJob = async (jobId, templateId, userId) => {
   console.log(`--- ⚙️ Job ${jobId} (Template: ${templateId}, User: ${userId}) çalıştırılıyor... ---`);
-  // Burada, templateId'ye göre ilgili akışı (veritabanından JSON'u çekip)
-  // çalıştırma mantığı yer almalıdır.
-  // Örnek: await executeFlow(templateId, userId);
+  let flowContext = {}; // Holds the output of each node
+
+  try {
+    const pool = await poolPromise;
+    const templateResult = await pool.request()
+      .input('userId', sql.Int, userId)
+      .input('templateId', sql.Int, templateId)
+      .query('SELECT JSON FROM [mosuser].[TEMPLATES] WHERE ID = @templateId AND USER_ID = @userId');
+
+    if (templateResult.recordset.length === 0) {
+      throw new Error(`Template with ID ${templateId} not found for user ${userId}.`);
+    }
+
+    const flowData = JSON.parse(templateResult.recordset[0].JSON);
+    const sortedNodes = [...flowData.nodes].sort((a, b) => a.position.y - b.position.y);
+
+    for (const node of sortedNodes) {
+      console.log(`[Job ${jobId}] >> Executing node ${node.id} (${node.type})`);
+
+      switch (node.type) {
+        case 'tableSource':
+          {
+            const { connectionDetails, fullTableName, selectedColumns } = node.data;
+            if (!connectionDetails || !fullTableName || !selectedColumns) {
+              throw new Error(`Node ${node.id} (tableSource) is not configured correctly.`);
+            }
+            const sourceConfig = {
+              user: connectionDetails.user,
+              password: connectionDetails.password,
+              server: connectionDetails.host,
+              database: connectionDetails.database,
+              options: { encrypt: true, trustServerCertificate: true },
+            };
+            let sourceConnection;
+            try {
+              sourceConnection = await new sql.ConnectionPool(sourceConfig).connect();
+              const query = `SELECT ${selectedColumns.join(', ')} FROM ${fullTableName}`;
+              const result = await sourceConnection.request().query(query);
+              flowContext[node.id] = result.recordset;
+              console.log(`[Job ${jobId}] >> Node ${node.id} (tableSource) executed. Fetched ${result.recordset.length} rows.`);
+            } finally {
+              if (sourceConnection) await sourceConnection.close();
+            }
+          }
+          break;
+
+        case 'tableDestination':
+          {
+            const incomingEdge = flowData.edges.find(edge => edge.target === node.id);
+            if (!incomingEdge) {
+              throw new Error(`Node ${node.id} (tableDestination) has no input connection.`);
+            }
+            const sourceNodeId = incomingEdge.source;
+            const sourceData = flowContext[sourceNodeId];
+            if (!sourceData) {
+              throw new Error(`Data from source node ${sourceNodeId} not found in context.`);
+            }
+
+            const { connectionDetails, fullTableName, columnMappings } = node.data;
+            if (!connectionDetails || !fullTableName || !columnMappings) {
+              throw new Error(`Node ${node.id} (tableDestination) is not configured correctly.`);
+            }
+            
+            // ID kolonunu identity hatası için otomatik çıkar
+            const filteredMappings = Object.fromEntries(
+              Object.entries(columnMappings).filter(([key]) => key.toUpperCase() !== 'ID')
+            );
+
+            if (sourceData.length === 0) {
+                console.log(`[Job ${jobId}] >> Source data for node ${node.id} is empty. Skipping destination.`);
+                break;
+            }
+
+            let destConnection;
+            try {
+                const destConfig = {
+                    user: connectionDetails.user,
+                    password: connectionDetails.password,
+                    server: connectionDetails.host,
+                    database: connectionDetails.database,
+                    options: { encrypt: true, trustServerCertificate: true },
+                };
+                destConnection = await new sql.ConnectionPool(destConfig).connect();
+                const transaction = new sql.Transaction(destConnection);
+                await transaction.begin();
+
+                try {
+                    const destColumns = Object.values(filteredMappings);
+                    let insertedRows = 0;
+
+                    for (const sourceRow of sourceData) {
+                        const request = new sql.Request(transaction);
+                        const placeholders = [];
+                        const columnNames = [];
+
+                        Object.entries(filteredMappings).forEach(([sourceCol, destCol], index) => {
+                            if (sourceRow.hasOwnProperty(sourceCol)) {
+                                const paramName = `param${index}`;
+                                request.input(paramName, sourceRow[sourceCol]);
+                                placeholders.push(`@${paramName}`);
+                                columnNames.push(`[${destCol}]`);
+                            }
+                        });
+
+                        if (columnNames.length > 0) {
+                            const insertQuery = `INSERT INTO ${fullTableName} (${columnNames.join(', ')}) VALUES (${placeholders.join(', ')})`;
+                            await request.query(insertQuery);
+                            insertedRows++;
+                        }
+                    }
+
+                    await transaction.commit();
+                    console.log(`[Job ${jobId}] >> Node ${node.id} (tableDestination) executed. Inserted ${insertedRows} rows.`);
+                } catch (err) {
+                    await transaction.rollback();
+                    throw err; // Re-throw after rollback
+                }
+            } finally {
+                if (destConnection) await destConnection.close();
+            }
+          }
+          break;
+
+        default:
+          console.log(`[Job ${jobId}] -- Warning: Node type '${node.type}' is not supported by the job executor yet.`);
+          break;
+      }
+    }
+
+    console.log(`--- ✅ Job ${jobId} (Template: ${templateId}) completed successfully. ---`);
+
+  } catch (err) {
+    console.error(`--- ❌ ERROR executing Job ${jobId} (Template: ${templateId}) ---`);
+    console.error(err);
+    // Optional: Update job status to 'Failed' in the database
+  }
 };
 
 // [POST] /api/jobs/:id/start - Job'u başlat

@@ -11,6 +11,8 @@ import DefaultPopup from './popup/default_popup.jsx';
 import TableSourcePopup from './popup/table_source_popup.jsx';
 import TableDestinationPopup from './popup/table_destination_popup.jsx';
 
+import TextField from '@mui/material/TextField';
+
 const NodeConfigModal = ({ isOpen, onClose, nodeData, onNodeDataChange, allNodes, allEdges }) => {
   const [formData, setFormData] = useState({});
 
@@ -95,6 +97,17 @@ const NodeConfigModal = ({ isOpen, onClose, nodeData, onNodeDataChange, allNodes
     <Dialog open={isOpen} onClose={onClose} fullWidth maxWidth="sm">
       <DialogTitle>Configure Node: {nodeData.type}</DialogTitle>
       <DialogContent dividers>
+        <TextField
+          autoFocus
+          margin="dense"
+          label="Custom Name"
+          type="text"
+          fullWidth
+          variant="outlined"
+          value={formData.customName || ''}
+          onChange={(e) => setFormData(prev => ({ ...prev, customName: e.target.value }))}
+          sx={{ mb: 2 }}
+        />
         {renderGenericPopupContent()}
       </DialogContent>
       <DialogActions>

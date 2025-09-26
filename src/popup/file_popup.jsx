@@ -14,15 +14,6 @@ import {
     Alert,
     IconButton,
     MenuItem,
-    FormControl,
-    InputLabel,
-    Select,
-    List,
-    ListItem,
-    ListItemText,
-    Checkbox,
-    FormControlLabel,
-    Divider,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 
@@ -197,21 +188,15 @@ export default function BapiPopup({ open, setOpen, type = "SAP", onSave, data, p
             }
 
             if (response.ok) {
-                setTestResult({ success: true, message: result.message || 'Bağlantı testi başarılı.' });
-                setSnackbar({ open: true, severity: 'success', message: result.message || 'Bağlantı testi başarılı.' });
-
-
-                // Başarılı bağlantıdan sonra schema listesini getir (sadece HANA ve MSSQL için)
-                if (type === "HANA" || type === "MSSQL") {
-                    fetchSchemas(details, type);
-                }
+                setTestResult({ success: true, message: result.message || 'Connection test successful' });
+                setSnackbar({ open: true, severity: 'success', message: result.message || 'Connection test successful' });
             } else {
-                setTestResult({ success: false, message: result.message || 'Bağlantı testi başarısız.' });
-                setSnackbar({ open: true, severity: 'error', message: result.message || 'Bağlantı testi başarısız.' });
+                setTestResult({ success: false, message: result.message || 'Connection test failed' });
+                setSnackbar({ open: true, severity: 'error', message: result.message || 'Connection test failed' });
             }
         } catch (err) {
             console.error('Test connection error (frontend):', err);
-            setSnackbar({ open: true, severity: 'error', message: 'Test sırasında bağlantı hatası.' });
+            setSnackbar({ open: true, severity: 'error', message: 'Connection error during testing' });
         } finally {
             setTesting(false);
         }
@@ -236,11 +221,11 @@ export default function BapiPopup({ open, setOpen, type = "SAP", onSave, data, p
                 setSchemas(data.schemas || []);
             } else {
                 console.error('Schema fetch failed');
-                setSnackbar({ open: true, severity: 'error', message: 'Schema listesi alınamadı.' });
+                setSnackbar({ open: true, severity: 'error', message: 'Schema fetch failed' });
             }
         } catch (err) {
             console.error('Schema fetch error:', err);
-            setSnackbar({ open: true, severity: 'error', message: 'Schema listesi getirilemedi.' });
+            setSnackbar({ open: true, severity: 'error', message: 'Schema fetch error' });
         } finally {
             setLoadingSchemas(false);
         }
@@ -273,11 +258,11 @@ export default function BapiPopup({ open, setOpen, type = "SAP", onSave, data, p
                 setTables(data.tables || []);
             } else {
                 console.error('Table fetch failed');
-                setSnackbar({ open: true, severity: 'error', message: 'Table listesi alınamadı.' });
+                setSnackbar({ open: true, severity: 'error', message: 'Table fetch failed' });
             }
         } catch (err) {
             console.error('Table fetch error:', err);
-            setSnackbar({ open: true, severity: 'error', message: 'Table listesi getirilemedi.' });
+            setSnackbar({ open: true, severity: 'error', message: 'Table fetch error' });
         } finally {
             setLoadingTables(false);
         }
@@ -311,11 +296,11 @@ export default function BapiPopup({ open, setOpen, type = "SAP", onSave, data, p
                 setSelectedColumns({}); // Reset column selections
             } else {
                 console.error('Column fetch failed');
-                setSnackbar({ open: true, severity: 'error', message: 'Column listesi alınamadı.' });
+                setSnackbar({ open: true, severity: 'error', message: 'Column fetch failed' });
             }
         } catch (err) {
             console.error('Column fetch error:', err);
-            setSnackbar({ open: true, severity: 'error', message: 'Column listesi getirilemedi.' });
+            setSnackbar({ open: true, severity: 'error', message: 'Column fetch error' });
         } finally {
             setLoadingColumns(false);
         }
@@ -395,7 +380,7 @@ export default function BapiPopup({ open, setOpen, type = "SAP", onSave, data, p
         try {
             const token = localStorage.getItem("authToken");
             if (!token) {
-                setSnackbar({ open: true, severity: "error", message: "Giriş token'ı bulunamadı." });
+                setSnackbar({ open: true, severity: "error", message: "Login token not found" });
                 setSaving(false);
                 return;
             }
@@ -447,12 +432,12 @@ export default function BapiPopup({ open, setOpen, type = "SAP", onSave, data, p
                 // Clear form
                 clearForm();
             } else {
-                setSnackbar({ open: true, severity: "error", message: result.message || "Kaydetme hatası." });
+                setSnackbar({ open: true, severity: "error", message: result.message || "Save failed" });
                 console.error('Save failed, status:', response.status, 'body:', result);
             }
         } catch (err) {
             console.error("Save error (frontend):", err);
-            setSnackbar({ open: true, severity: "error", message: "Bağlantı hatası." });
+            setSnackbar({ open: true, severity: "error", message: "Connection error" });
         } finally {
             setSaving(false);
         }
@@ -629,122 +614,13 @@ export default function BapiPopup({ open, setOpen, type = "SAP", onSave, data, p
                     </>
                 )}
 
-                {/* Schema, Table, Column Seçimi - Sadece HANA ve MSSQL için */}
-                {testResult?.success && (type === "HANA" || type === "MSSQL") && (
-                    <Box sx={{ mt: 3 }}>
-                        <Divider sx={{ my: 2 }} />
-                        <Typography variant="h6" sx={{ mb: 2 }}>Database Explorer</Typography>
-
-                        {/* Schema Seçimi */}
-                        <Box sx={{ ...boxBorderStyle }}>
-                            <Typography sx={{ mb: 1, fontWeight: 500 }}>Schema:</Typography>
-                            <FormControl fullWidth size="small">
-                                <InputLabel>Select Schema</InputLabel>
-                                <Select
-                                    value={selectedSchema}
-                                    label="Select Schema"
-                                    onChange={(e) => handleSchemaChange(e.target.value)}
-                                    disabled={loadingSchemas}
-                                >
-                                    {loadingSchemas ? (
-                                        <MenuItem disabled>
-                                            <CircularProgress size={16} /> Loading...
-                                        </MenuItem>
-                                    ) : (
-                                        schemas.map((schema) => (
-                                            <MenuItem key={schema} value={schema}>
-                                                {schema}
-                                            </MenuItem>
-                                        ))
-                                    )}
-                                </Select>
-                            </FormControl>
-                        </Box>
-
-                        {/* Table Seçimi */}
-                        {selectedSchema && (
-                            <Box sx={{ ...boxBorderStyle }}>
-                                <Typography sx={{ mb: 1, fontWeight: 500 }}>Table:</Typography>
-                                <FormControl fullWidth size="small">
-                                    <InputLabel>Select Table</InputLabel>
-                                    <Select
-                                        value={selectedTable}
-                                        label="Select Table"
-                                        onChange={(e) => handleTableChange(e.target.value)}
-                                        disabled={loadingTables}
-                                    >
-                                        {loadingTables ? (
-                                            <MenuItem disabled>
-                                                <CircularProgress size={16} /> Loading...
-                                            </MenuItem>
-                                        ) : (
-                                            tables.map((table) => (
-                                                <MenuItem key={table} value={table}>
-                                                    {table}
-                                                </MenuItem>
-                                            ))
-                                        )}
-                                    </Select>
-                                </FormControl>
-                            </Box>
-                        )}
-
-                        {/* Column Seçimi */}
-                        {selectedTable && (
-                            <Box sx={{ ...boxBorderStyle }}>
-                                <Typography sx={{ mb: 1, fontWeight: 500 }}>Columns:</Typography>
-                                {loadingColumns ? (
-                                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                                        <CircularProgress size={16} />
-                                        <Typography variant="body2">Loading columns...</Typography>
-                                    </Box>
-                                ) : (
-                                    <List dense sx={{ maxHeight: 200, overflow: 'auto' }}>
-                                        {columns.map((column) => (
-                                            <ListItem key={column.name} disablePadding>
-                                                <FormControlLabel
-                                                    control={
-                                                        <Checkbox
-                                                            checked={selectedColumns[column.name] || false}
-                                                            onChange={() => handleColumnToggle(column.name)}
-                                                            size="small"
-                                                        />
-                                                    }
-                                                    label={
-                                                        <ListItemText
-                                                            primary={column.name}
-                                                            secondary={`${column.type}${column.length ? `(${column.length})` : ''} ${column.nullable ? 'NULL' : 'NOT NULL'}`}
-                                                        />
-                                                    }
-                                                />
-                                            </ListItem>
-                                        ))}
-                                        {columns.length === 0 && (
-                                            <Typography variant="body2" sx={{ color: "text.secondary", textAlign: 'center', py: 2 }}>
-                                                No columns found
-                                            </Typography>
-                                        )}
-                                    </List>
-                                )}
-
-                                {/* Seçilen Column Sayısı */}
-                                {Object.keys(selectedColumns).filter(key => selectedColumns[key]).length > 0 && (
-                                    <Typography variant="caption" sx={{ mt: 1, display: 'block', color: 'primary.main' }}>
-                                        {Object.keys(selectedColumns).filter(key => selectedColumns[key]).length} column(s) selected
-                                    </Typography>
-                                )}
-                            </Box>
-                        )}
-                    </Box>
-                )}
-
                 {/* Butonlar */}
                 <Box sx={{ display: "flex", justifyContent: "space-between", mt: 2 }}>
                     <Button variant="contained" onClick={handleTestConnection} disabled={testing || saving} sx={{ ...bigButtonSx, backgroundColor: primaryBlue }}>
                         {testing ? <CircularProgress size={20} color="inherit" /> : "Test Connection"}
                     </Button>
                     <Box sx={{ display: "flex", gap: 2 }}>
-                        <Button variant="contained" onClick={handleSave} disabled={saving || fromDetails /*|| !testResult?.success*/} sx={{ ...bigButtonSx, backgroundColor: primaryBlue }}>
+                        <Button variant="contained" onClick={handleSave} disabled={saving || fromDetails || !testResult?.success} sx={{ ...bigButtonSx, backgroundColor: primaryBlue }}>
                             {saving ? <CircularProgress size={18} color="inherit" /> : "Save"}
                         </Button>
                         <Button variant="contained" onClick={handleCancel} disabled={saving || testing} sx={{ ...bigButtonSx, backgroundColor: primaryBlue }}>

@@ -316,14 +316,21 @@ function Builder() {
     event.preventDefault();
     const type = event.dataTransfer.getData('application/reactflow');
     if (typeof type === 'undefined' || !type) return;
-    const position = screenToFlowPosition({ x: event.clientX, y: event.clientY });
-    const newNode = {
-      id: `dndnode_${Date.now()}`,
-      type,
-      position,
-      data: { label: `${type} node` },
-    };
-    setFlows((fs) => ({ ...fs, [activeFlowId]: { ...fs[activeFlowId], nodes: [...fs[activeFlowId].nodes, newNode] } }));
+
+    setFlows((fs) => {
+      const activeFlowNodes = fs[activeFlowId].nodes;
+      const position = screenToFlowPosition({ x: event.clientX, y: event.clientY });
+      const newNode = {
+        id: `dndnode_${Date.now()}`,
+        type,
+        position,
+        data: {
+          label: `${type} node`,
+          creationIndex: activeFlowNodes.length + 1 // Assign creation index
+        },
+      };
+      return { ...fs, [activeFlowId]: { ...fs[activeFlowId], nodes: [...activeFlowNodes, newNode] } };
+    });
   }, [screenToFlowPosition, activeFlowId]);
 
   const onNodeDoubleClick = useCallback((event, node) => { setEditingNodeId(node.id); }, []);
@@ -337,8 +344,11 @@ function Builder() {
       return;
     }
 
+    // Sort nodes by Y-position for top-to-bottom execution
+    const sortedNodes = [...currentFlow.nodes].sort((a, b) => a.position.y - b.position.y);
+    const nodeIds = sortedNodes.map(n => n.id);
+
     // Start execution - set all nodes to waiting
-    const nodeIds = currentFlow.nodes.map(n => n.id);
     const initialStatuses = {};
     nodeIds.forEach(id => { initialStatuses[id] = 'waiting'; });
 

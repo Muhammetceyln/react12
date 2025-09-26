@@ -46,6 +46,7 @@ import sapHana from '../photo/saphana.png';
 import mssqlLogo from '../photo/mssqllogo.png';
 
 
+import { TextField } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 
 /**
@@ -58,7 +59,8 @@ export default function TableSourcePopup({ open, setOpen, onSave, initialData = 
     // States
     const [loading, setLoading] = useState(false);
     const [snackbar, setSnackbar] = useState({ open: false, severity: "info", message: "" });
-    
+    const [customName, setCustomName] = useState("");
+
     // Connection states
     const [connections, setConnections] = useState([]);
     const [selectedConnection, setSelectedConnection] = useState("");
@@ -301,6 +303,7 @@ export default function TableSourcePopup({ open, setOpen, onSave, initialData = 
             
             // Eğer initialData varsa onu yükle
             if (initialData) {
+                setCustomName(initialData.customName || "");
                 setSelectedConnection(initialData.connectionId || "");
                 setSelectedSchema(initialData.schema || "");
                 setSelectedTable(initialData.table || "");
@@ -405,7 +408,7 @@ export default function TableSourcePopup({ open, setOpen, onSave, initialData = 
             
             // UI için
             isConfigured: true,
-            customName: `${selectedSchema}.${selectedTable} (${selectedColumnsArray.length} cols)`,
+            customName: customName.trim() !== '' ? customName.trim() : `${selectedSchema}.${selectedTable} (${selectedColumnsArray.length} cols)`,
             
             // Preview data (isteğe bağlı)
             previewData: showPreview ? previewData.slice(0, 5) : null // İlk 5 satır
@@ -437,6 +440,17 @@ export default function TableSourcePopup({ open, setOpen, onSave, initialData = 
                 </DialogTitle>
 
                 <DialogContent dividers>
+                    <TextField
+                        autoFocus
+                        margin="dense"
+                        label="Custom Name"
+                        type="text"
+                        fullWidth
+                        variant="outlined"
+                        value={customName}
+                        onChange={(e) => setCustomName(e.target.value)}
+                        sx={{ mb: 2 }}
+                    />
                     
 
                     {/* Connection Selection */}

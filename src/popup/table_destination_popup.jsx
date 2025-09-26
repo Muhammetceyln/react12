@@ -41,23 +41,24 @@ export default function TableDestinationPopup({ open, setOpen, onSave, sourceDat
     // States
     const [loading, setLoading] = useState(false);
     const [snackbar, setSnackbar] = useState({ open: false, severity: "info", message: "" });
-    
+    const [customName, setCustomName] = useState("");
+
     // Connection states
     const [connections, setConnections] = useState([]);
     const [selectedConnection, setSelectedConnection] = useState("");
     const [connectionData, setConnectionData] = useState(null);
     const [connectionPassword, setConnectionPassword] = useState(""); // Passwo rd re-enter
-    
+
     // Schema/Table/Column states
     const [schemas, setSchemas] = useState([]);
     const [selectedSchema, setSelectedSchema] = useState("");
     const [tables, setTables] = useState([]);
     const [selectedTable, setSelectedTable] = useState("");
     const [destColumns, setDestColumns] = useState([]);
-    
+
     // Mapping state
     const [columnMappings, setColumnMappings] = useState({});
-    
+
     const [loadingSchemas, setLoadingSchemas] = useState(false);
     const [loadingTables, setLoadingTables] = useState(false);
     const [loadingColumns, setLoadingColumns] = useState(false);
@@ -155,7 +156,7 @@ export default function TableDestinationPopup({ open, setOpen, onSave, sourceDat
     // Table listesini getir
     const fetchTables = async (schema) => {
         if (!schema || !connectionData) return;
-        
+
         setLoadingTables(true);
         try {
             const token = getAuthToken();
@@ -165,10 +166,10 @@ export default function TableDestinationPopup({ open, setOpen, onSave, sourceDat
                     'Content-Type': 'application/json',
                     Authorization: `Bearer ${token}`,
                 },
-                body: JSON.stringify({ 
-                    details: connectionData.details, 
-                    type: connectionData.type, 
-                    schema 
+                body: JSON.stringify({
+                    details: connectionData.details,
+                    type: connectionData.type,
+                    schema
                 }),
             });
 
@@ -189,7 +190,7 @@ export default function TableDestinationPopup({ open, setOpen, onSave, sourceDat
     // Destination table column'larını getir
     const fetchDestColumns = async (schema, table) => {
         if (!schema || !table || !connectionData) return;
-        
+
         setLoadingColumns(true);
         try {
             const token = getAuthToken();
@@ -199,11 +200,11 @@ export default function TableDestinationPopup({ open, setOpen, onSave, sourceDat
                     'Content-Type': 'application/json',
                     Authorization: `Bearer ${token}`,
                 },
-                body: JSON.stringify({ 
-                    details: connectionData.details, 
-                    type: connectionData.type, 
-                    schema, 
-                    table 
+                body: JSON.stringify({
+                    details: connectionData.details,
+                    type: connectionData.type,
+                    schema,
+                    table
                 }),
             });
 
@@ -227,9 +228,10 @@ export default function TableDestinationPopup({ open, setOpen, onSave, sourceDat
     useEffect(() => {
         if (open) {
             fetchConnections();
-            
+
             // Eğer initialData varsa onu yükle
             if (initialData) {
+                setCustomName(initialData.customName || "");
                 setSelectedConnection(initialData.connectionId || "");
                 setSelectedSchema(initialData.schema || "");
                 setSelectedTable(initialData.table || "");
@@ -262,7 +264,7 @@ export default function TableDestinationPopup({ open, setOpen, onSave, sourceDat
         setTables([]);
         setDestColumns([]);
         setColumnMappings({});
-        
+
         if (connectionId) {
             fetchConnectionDetails(connectionId);
         }
@@ -275,7 +277,7 @@ export default function TableDestinationPopup({ open, setOpen, onSave, sourceDat
         setTables([]);
         setDestColumns([]);
         setColumnMappings({});
-        
+
         if (schema) {
             fetchTables(schema);
         }
@@ -286,7 +288,7 @@ export default function TableDestinationPopup({ open, setOpen, onSave, sourceDat
         setSelectedTable(table);
         setDestColumns([]);
         setColumnMappings({});
-        
+
         if (table && selectedSchema) {
             fetchDestColumns(selectedSchema, table);
         }
@@ -325,20 +327,20 @@ export default function TableDestinationPopup({ open, setOpen, onSave, sourceDat
             connectionName: connections.find(c => c.id == selectedConnection)?.name,
             connectionType: connections.find(c => c.id == selectedConnection)?.type,
             connectionDetails: connectionData.details, // Destination bağlantı detayları
-            
+
             // Table bilgileri
             schema: selectedSchema,
             table: selectedTable,
             fullTableName: `${selectedSchema}.${selectedTable}`,
-            
+
             // Mapping bilgileri
             columnMappings: columnMappings, // { sourceColumn: destColumn }
             sourceData: sourceData, // Source'dan gelen tüm data
-            
+
             // UI için
             isConfigured: true,
-            customName: `→ ${selectedSchema}.${selectedTable} (${Object.keys(columnMappings).filter(key => columnMappings[key]).length} mapped)`,
-            
+            customName: customName.trim() !== '' ? customName.trim() : `→ ${selectedSchema}.${selectedTable} (${Object.keys(columnMappings).filter(key => columnMappings[key]).length} mapped)`,
+
             // Transfer detayları (Run Flow için)
             transferConfig: {
                 sourceConnection: sourceData?.connectionDetails,
@@ -353,11 +355,13 @@ export default function TableDestinationPopup({ open, setOpen, onSave, sourceDat
 
         function generateTransferQuery() {
             if (!sourceData || !connectionData) return '';
-            
+
             const mappedCols = Object.keys(columnMappings).filter(key => columnMappings[key]);
-            const sourceList = mappedCols.join(', ');
-            const destList = mappedCols.map(col => columnMappings[col]).join(', ');
-            
+            // ID kolonunu identity hatası için çıkar
+            const filteredCols = mappedCols.filter(col => col.toUpperCase() !== 'ID');
+            const sourceList = filteredCols.join(', ');
+            const destList = filteredCols.map(col => columnMappings[col]).join(', ');
+
             if (connectionData.type === "MSSQL") {
                 return `INSERT INTO [${selectedSchema}].[${selectedTable}] (${destList}) SELECT ${sourceList} FROM [SOURCE_TABLE]`;
             } else { // HANA
@@ -385,26 +389,37 @@ export default function TableDestinationPopup({ open, setOpen, onSave, sourceDat
                 </DialogTitle>
 
                 <DialogContent dividers>
+                    <TextField
+                        autoFocus
+                        margin="dense"
+                        label="Custom Name"
+                        type="text"
+                        fullWidth
+                        variant="outlined"
+                        value={customName}
+                        onChange={(e) => setCustomName(e.target.value)}
+                        sx={{ mb: 2 }}
+                    />
 
                     {/* Source Data Info */}
                     {sourceData && (
-<Paper sx={{
-    p: 2,
-    mb: 3,
-    bgcolor: 'info.50',
-    border: '1px solid',
-    borderColor: 'info.main',
-    width: 552 // ✨ Genişliği 100px olarak ayarlar
-}}>
-    <Typography variant="subtitle1" sx={{ mb: 1, color: 'info.dark', fontWeight: 600 }}>
-        📊 Source Table: {sourceData.fullTableName}
-    </Typography>
-    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-        {sourceData.selectedColumns?.map((col, index) => (
-            <Chip key={index} label={col} size="small" color="info" variant="outlined" />
-        ))}
-    </Box>
-</Paper>
+                        <Paper sx={{
+                            p: 2,
+                            mb: 3,
+                            bgcolor: 'info.50',
+                            border: '1px solid',
+                            borderColor: 'info.main',
+                            width: 552 // ✨ Genişliği 100px olarak ayarlar
+                        }}>
+                            <Typography variant="subtitle1" sx={{ mb: 1, color: 'info.dark', fontWeight: 600 }}>
+                                📊 Source Table: {sourceData.fullTableName}
+                            </Typography>
+                            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                                {sourceData.selectedColumns?.map((col, index) => (
+                                    <Chip key={index} label={col} size="small" color="info" variant="outlined" />
+                                ))}
+                            </Box>
+                        </Paper>
                     )}
 
                     {/* Destination Connection Selection */}
@@ -492,7 +507,7 @@ export default function TableDestinationPopup({ open, setOpen, onSave, sourceDat
                     {/* Column Mapping */}
                     {selectedTable && (
                         <Box>
-                            
+
 
 
                             {/* Mapping Controls */}
@@ -526,7 +541,7 @@ export default function TableDestinationPopup({ open, setOpen, onSave, sourceDat
                                             </FormControl>
                                         </Box>
                                     ))}
-                                    
+
                                     {/* Mapping Summary */}
                                     {Object.keys(columnMappings).filter(key => columnMappings[key]).length > 0 && (
                                         <Box sx={{ mt: 2, p: 2, bgcolor: 'success.50', borderRadius: 1, border: '1px solid', borderColor: 'success.main' }}>
@@ -550,13 +565,13 @@ export default function TableDestinationPopup({ open, setOpen, onSave, sourceDat
                     <Button onClick={handleCancel}>
                         Cancel
                     </Button>
-                    <Button 
-                        onClick={handleSave} 
+                    <Button
+                        onClick={handleSave}
                         variant="contained"
                         disabled={
-                            !selectedConnection || 
-                            !selectedSchema || 
-                            !selectedTable || 
+                            !selectedConnection ||
+                            !selectedSchema ||
+                            !selectedTable ||
                             Object.keys(columnMappings).filter(key => columnMappings[key]).length === 0
                         }
                     >

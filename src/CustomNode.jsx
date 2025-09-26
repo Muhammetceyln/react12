@@ -15,15 +15,16 @@ const logoMap = {
   SAP: sapLogo,
 };
 
+// --- SAP Fiori Benzeri Stil Tanımlamaları ---
 const nodeStyles = {
-  bapi: { icon: <Cloud />, backgroundColor: '#cce5ff', borderColor: '#b8daff' },
-  query: { icon: <QueryStats />, backgroundColor: '#d4edda', borderColor: '#c3e6cb' },
-  tableSource: { icon: <TableChart />, backgroundColor: '#fff3cd', borderColor: '#ffeeba' },
-  file: { icon: <Folder />, backgroundColor: '#f8d7da', borderColor: '#f5c6cb' },
-  tableDestination: { icon: <TableChart />, backgroundColor: '#e2e3e5', borderColor: '#d6d8db' },
-  default: { icon: <Output />, backgroundColor: '#fefefe', borderColor: '#ddd' },
-  input: { icon: <Input />, backgroundColor: '#fefefe', borderColor: '#ddd' },
-  output: { icon: <Output />, backgroundColor: '#fefefe', borderColor: '#ddd' },
+  bapi: { icon: <Cloud sx={{ color: '#007bff' }} />, headerColor: 'rgba(0, 123, 255, 0.1)' },
+  query: { icon: <QueryStats sx={{ color: '#28a745' }} />, headerColor: 'rgba(40, 167, 69, 0.1)' },
+  tableSource: { icon: <TableChart sx={{ color: '#ffc107' }} />, headerColor: 'rgba(255, 193, 7, 0.1)' },
+  file: { icon: <Folder sx={{ color: '#dc3545' }} />, headerColor: 'rgba(220, 53, 69, 0.1)' },
+  tableDestination: { icon: <TableChart sx={{ color: '#6c757d' }} />, headerColor: 'rgba(108, 117, 125, 0.1)' },
+  default: { icon: <Output sx={{ color: '#343a40' }} />, headerColor: 'rgba(52, 58, 64, 0.1)' },
+  input: { icon: <Input sx={{ color: '#17a2b8' }} />, headerColor: 'rgba(23, 162, 184, 0.1)' },
+  output: { icon: <Output sx={{ color: '#6c757d' }} />, headerColor: 'rgba(108, 117, 125, 0.1)' },
 };
 
 const nodeRoles = {
@@ -38,50 +39,37 @@ const getDisplayType = (type) => {
   return type.charAt(0).toUpperCase() + type.slice(1);
 };
 
-// ## YENİ: Handle stillerini burada tanımlıyoruz
-const handleBaseStyle = {
-  background: '#555',
-  border: '2px solid white', // Düğümün kenarlığından ayırmak için
-  width: 24, // Genişliği artırdık
-  height: 12, // Yüksekliği yarısı kadar yaparak yarım daire temeli oluşturduk
-  zIndex: 10,
+// --- Handle Stilleri (Daha İnce ve Modern) ---
+const handleStyle = {
+  width: 10,
+  height: 10,
+  background: '#ffffff',
+  border: '2px solid #007bff',
+  borderRadius: '50%',
+  zIndex: 11,
 };
-
-// Hedef (üst) için stil
-const targetHandleStyle = {
-  ...handleBaseStyle,
-  top: -7, // Yüksekliğin yarısı kadar yukarı taşıyarak düğümün dışına çıkmasını sağladık
-  borderRadius: '12px 12px 0 0', // Sadece üst köşeleri yuvarladık
-};
-
-// Kaynak (alt) için stil
-const sourceHandleStyle = {
-  ...handleBaseStyle,
-  bottom: -7, // Yüksekliğin yarısı kadar aşağı taşıdık
-  borderRadius: '0 0 12px 12px', // Sadece alt köşeleri yuvarladık
-};
-
 
 const CustomNode = ({ data, type }) => {
   const baseStyle = nodeStyles[type] || nodeStyles.default;
   const executionStatus = data.executionStatus;
 
+  // --- Dinamik Stil ve Durum Yönetimi ---
   const getExecutionStyle = () => {
     switch (executionStatus) {
       case 'waiting':
-        return { backgroundColor: '#f8f9fa', borderColor: '#dee2e6', opacity: 0.7 };
+        return { borderColor: '#6c757d', opacity: 0.6, boxShadow: 'none' };
       case 'processing':
-        return { ...baseStyle, backgroundColor: '#fff3cd', borderColor: '#ffc107', boxShadow: '0 0 10px rgba(255,193,7,0.5)' };
+        return { borderColor: '#ffc107', opacity: 1, boxShadow: '0 0 12px rgba(255, 193, 7, 0.6)' };
       case 'completed':
-        return { ...baseStyle, backgroundColor: '#d4edda', borderColor: '#28a745', boxShadow: '0 0 10px rgba(40,167,69,0.3)' };
+        return { borderColor: '#28a745', opacity: 1, boxShadow: '0 0 12px rgba(40, 167, 69, 0.4)' };
       case 'error':
-        return { ...baseStyle, backgroundColor: '#f8d7da', borderColor: '#dc3545', boxShadow: '0 0 10px rgba(220,53,69,0.3)' };
+        return { borderColor: '#dc3545', opacity: 1, boxShadow: '0 0 12px rgba(220, 53, 69, 0.5)' };
       default:
-        return baseStyle;
+        return { borderColor: '#ced4da', opacity: 1, boxShadow: '0 4px 12px rgba(0,0,0,0.08)' };
     }
   };
 
-  const style = executionStatus ? getExecutionStyle() : baseStyle;
+  const style = getExecutionStyle();
 
   const isSource = nodeRoles.source.includes(type);
   const isDestination = nodeRoles.destination.includes(type);
@@ -93,63 +81,80 @@ const CustomNode = ({ data, type }) => {
     ? `${data.connectionType} (${data.connectionName})`
     : data.connectionType;
 
-  const getStatusIcon = () => {
-    switch (executionStatus) {
-      case 'waiting': return '⏳';
-      case 'processing': return '🟡';
-      case 'completed': return '✅';
-      case 'error': return '❌';
-      default: return null;
-    }
-  };
-
+  // --- SAP Fiori Tarzı Kart Yapısı ---
   return (
     <Box sx={{
-      backgroundColor: style.backgroundColor,
-      border: `1px solid ${style.borderColor}`,
-      borderRadius: '8px',
-      minWidth: 180,
-      maxWidth: 280,
-      boxShadow: style.boxShadow || '0 12px 40px rgba(0,0,0,0.08)',
-      opacity: style.opacity || 1,
+      backgroundColor: '#ffffff',
+      border: `2px solid ${style.borderColor}`,
+      borderRadius: '4px', // Daha keskin köşeler
+      minWidth: 200,
+      maxWidth: 220,
+      boxShadow: style.boxShadow,
+      opacity: style.opacity,
       position: 'relative',
-      transition: 'all 0.2s ease-in-out',
+      transition: 'all 0.3s ease',
+      fontFamily: '"Segoe UI", "Roboto", "Helvetica Neue", Arial, sans-serif', // Kurumsal font
     }}>
-      {/* --- BAŞLIK ALANI (HEADER) --- */}
+      {/* --- Sıra Numarası Rozeti --- */}
+      {data.creationIndex && (
+        <Box sx={{
+          position: 'absolute',
+          top: -10,
+          left: -10,
+          background: '#007bff',
+          color: 'white',
+          width: 24,
+          height: 24,
+          borderRadius: '50%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: '12px',
+          fontWeight: 'bold',
+          border: '2px solid white',
+          zIndex: 12,
+        }}>
+          {data.creationIndex}
+        </Box>
+      )}
+
+      {/* --- BAŞLIK (HEADER) --- */}
       <Box sx={{
         display: 'flex',
         alignItems: 'center',
-        padding: '12px 16px ',
+        padding: '8px 12px',
         borderBottom: `1px solid ${style.borderColor}`,
-        backgroundColor: 'rgba(0,0,0,0.03)'
+        backgroundColor: baseStyle.headerColor,
       }}>
         {baseStyle.icon}
         <Typography
           variant="body2"
           sx={{
-            ml: 1,
-            fontWeight: 'bold',
-            whiteSpace: 'normal',
-            wordWrap: 'break-word',
+            ml: 1.5,
+            fontWeight: 600, // Daha belirgin
+            color: '#343a40',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
           }}
         >
-          <span style={{ color: '#555' }}>{getDisplayType(type)}:</span> {nodeLabel}
+          {nodeLabel}
         </Typography>
       </Box>
 
-      {/* --- GÖVDE ALANI (BODY) --- */}
+      {/* --- GÖVDE (BODY) --- */}
       <Box sx={{
-        padding: '24px 16px',
+        padding: '12px',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-
+        minHeight: 120, // Sabit yükseklik
       }}>
         <Box sx={{
-          width: 112,
-          height: 112,
-          mb: 2,
+          width: 64, // Daha küçük logo
+          height: 64,
+          mb: 1,
         }}>
           {logoMap[data.connectionType] && (
             <img
@@ -159,31 +164,27 @@ const CustomNode = ({ data, type }) => {
             />
           )}
         </Box>
-        <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: '500' }}>
+        <Typography variant="caption" sx={{ color: '#6c757d', fontWeight: 500, textAlign: 'center' }}>
+          {getDisplayType(type)}
+        </Typography>
+        <Typography variant="caption" sx={{ color: '#495057', fontWeight: 600, textAlign: 'center' }}>
           {connectionLabel}
         </Typography>
       </Box>
 
-      {/* --- Durum ikonu --- */}
-      {getStatusIcon() && (
-        <Typography sx={{ fontSize: '1rem', position: 'absolute', top: 5, right: 8 }}>
-          {getStatusIcon()}
-        </Typography>
-      )}
-
-      {/* ## GÜNCELLEME: Handle pozisyonları ve stilleri değiştirildi ## */}
+      {/* --- HANDLES (Giriş/Çıkış Noktaları) --- */}
       {(isDestination || isTransform) && (
         <Handle
           type="target"
-          position={Position.Top} // Üste alındı
-          style={targetHandleStyle} // Yeni stil uygulandı
+          position={Position.Top}
+          style={handleStyle}
         />
       )}
       {(isSource || isTransform) && (
         <Handle
           type="source"
-          position={Position.Bottom} // Alta alındı
-          style={sourceHandleStyle} // Yeni stil uygulandı
+          position={Position.Bottom}
+          style={handleStyle}
         />
       )}
     </Box>
